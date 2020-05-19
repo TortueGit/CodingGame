@@ -23,7 +23,7 @@ int main()
     cin >> N;
     cin.ignore();
 
-    cerr << "N = " << N << endl;
+    //cerr << "N = " << N << endl;
 
     // Create a vector to stack a vector of string which will represents the cell values.
     vector<vector<string>> operAndArgs;
@@ -37,7 +37,7 @@ int main()
         cin >> operAndArgs[i][0] >> operAndArgs[i][1] >> operAndArgs[i][2];
         cin.ignore();
 
-        cerr << operAndArgs[i][0] << operAndArgs[i][1] << operAndArgs[i][2] << endl;
+        //cerr << operAndArgs[i][0] << operAndArgs[i][1] << operAndArgs[i][2] << endl;
 
         // Calculated value is initialized to "" and will be calculated later.
         operAndArgs[i][3] = "";
@@ -79,8 +79,8 @@ void CalculValue(vector<vector<string>> &_operAndArgs, int _index)
     {
     	MultValue(_operAndArgs, _index);
     }
-    cerr << "_index[" << _index << "]" << _operAndArgs[_index][0] << "_" << _operAndArgs[_index][1] << "_" << _operAndArgs[_index][2] << endl;
-    cerr << "_operAndArgs[" << _index << "][3] = " << _operAndArgs[_index][3] << endl;
+    //cerr << "_index[" << _index << "]" << _operAndArgs[_index][0] << "_" << _operAndArgs[_index][1] << "_" << _operAndArgs[_index][2] << endl;
+    //cerr << "_operAndArgs[" << _index << "][3] = " << _operAndArgs[_index][3] << endl;
 }
 
 void ReadValue(vector<vector<string>> &_operAndArgs, int _index)
