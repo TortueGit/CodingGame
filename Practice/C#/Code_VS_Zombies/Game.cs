@@ -68,37 +68,51 @@ class Player
                                 $"should be in [{myGame.Zombies.Single(x => x.Id == zombieId).NextPosition}]",
                                 $"is in [{zombie.Position}]"
                             },
-                            DebugInfos.INFOS
+                            DebugInfos.DEBUG
                         );
                 }
                 myGame.AddZombie(zombie);
             }
 
             agent.NewBest = false;
+            agent.TotalMs = 0.0f;
+            agent.SimRun = 0;
             SimulationGame.Simulation(agent, simulationInfos, myGame, myGame.Nash);
 
             if (agent.BestResult.Len == 0)
                 Console.Error.WriteLine("No winning game found");
 
-            if (!agent.NewBest)
-                agent.MoveNum++;
-
             foundValidMove = false;
-            while (agent.MoveNum < agent.BestResult.Len && !foundValidMove)
+
+            try
             {
-                if (Tools.IsMoveValid(agent.BestResult.MoveList[agent.MoveNum]))
+                if (agent.BestResult.MoveList.Count == 1)
                 {
-                    Tools.PrintMove(agent.BestResult.MoveList[agent.MoveNum]);
+                    Tools.PrintMove(agent.BestResult.MoveList.First());
                     foundValidMove = true;
+                    agent.MoveNum++;
                 }
                 else
-                    agent.MoveNum++;
+                {
+                    if (Tools.IsMoveValid(agent.BestResult.MoveList[agent.MoveNum]))
+                    {
+                        Tools.PrintMove(agent.BestResult.MoveList[agent.MoveNum]);
+                        foundValidMove = true;
+                        agent.MoveNum++;
+                    }
+                }
+            }
+            catch (System.ArgumentOutOfRangeException ex)
+            {
+                Console.Error.WriteLine($"ArgumentOutOfRangeException Raised with agent.MoveNum [{agent.MoveNum}] and agent.BestResult.MoveList.Count [{agent.BestResult.MoveList.Count}]");
             }
 
             if (!foundValidMove)
             {
                 for (int k = 0; k < agent.BestResult.Len; k++)
-                    Console.Error.WriteLine($"move {k} is ({agent.BestResult.MoveList[k].Item1}, {agent.BestResult.MoveList[k].Item2})");
+                    Console.Error.WriteLine($"move {k} is ({agent.BestResult.MoveList[k].Item1}, {agent.BestResult.MoveList[k].Item2}) " +
+                        $"agent.BestResult.MoveList.Count [{agent.BestResult.MoveList.Count}] " +
+                        $"agent.MoveNum [{agent.MoveNum}]");
             }
 
             // Write an action using Console.WriteLine()
@@ -119,10 +133,12 @@ class GameInfos
     public const int MAX_ZOMBIES = 100;
     public const int MAX_HUMANS = 100;
     public const int MAX_MOVES = 100;
-    public const int MAX_SIMULATIONS_RUN = 2000;
+    public const int MAX_SIMULATIONS_RUN = int.MaxValue;
     public const int EMPTY_ZOMBIE = -4;
     public const int EMPTY_HUMAN = -5;
-    public const float TIMEOUT_FOR_A_TURN_IN_MS = 100.0f;
+    public const float TIMEOUT_FOR_A_TURN_IN_MS = 99.0f;
+
+    public const float ACCEPTABLE_TIME_REPONSE_FOR_METHODS = 50.0f;
     #endregion
 
     #region FIELDS
@@ -483,8 +499,27 @@ class SimulationInfos
     private int _simZombieCount = 0;
     private int _simHumanCount = 0;
 
-    private int _simStartingRandomMovesNum = -1;
-    private int _simMaxStartingRandomMoves = 3;
+    private int _simStartingRandomMovesNum;
+    private int _simMaxStartingRandomMoves;
+    #endregion
+
+    #region CONSTRUCTORS
+    public SimulationInfos()
+    {
+        SimFailure = false;
+        SimZombiesAllDead = false;
+        SimZombiesDiedThisTurn = false;
+        SimNashTargetDiedThisTurn = false;
+
+        SimPoints = 0;
+        SimTurnNum = 0;
+        SimMovesCount = 0;
+        SimZombieCount = SimZombies.Count;
+        SimHumanCount = SimHumans.Count;
+
+        SimStartingRandomMovesNum = -1;
+        _simMaxStartingRandomMoves = -1;
+    }
     #endregion
 
     #region Properties
@@ -607,9 +642,6 @@ class SimulationInfos
         SimZombieCount = SimZombies.Count;
         SimHumanCount = SimHumans.Count;
 
-        SimStartingRandomMovesNum = 0;
-        _simMaxStartingRandomMoves = 1;
-
         DebugInfos.WriteDebugMessage("SimulationSetup end");
     }
     #endregion
@@ -618,11 +650,22 @@ class SimulationInfos
 class SimulationAgent
 {
     #region FIELDS
-    private int _simRun = 0;
-    private bool _newBest = false;
-    private float _totalMs = 0;
-    private int _moveNum = 0;
-    private SimulationResult _bestResult = new SimulationResult();
+    private int _simRun;
+    private bool _newBest;
+    private float _totalMs;
+    private int _moveNum;
+    private SimulationResult _bestResult;
+    #endregion
+
+    #region CONSTRUCTORS
+    public SimulationAgent()
+    {
+        _simRun = 0;
+        _newBest = false;
+        _totalMs = 0.0f;
+        _moveNum = 0;
+        _bestResult = new SimulationResult();
+    }
     #endregion
 
     #region PROPERTIES
@@ -669,6 +712,13 @@ class SimulationResult
         _moveList = new List<Tuple<int, int>>();
         _len = 0;
     }
+
+    public SimulationResult(SimulationResult simResult)
+    {
+        _points = simResult.Points;
+        _moveList = new List<Tuple<int, int>>(simResult.MoveList);
+        _len = simResult.Len;
+    }
     #endregion
 
     #region PROPERTIES
@@ -698,7 +748,7 @@ static class Tools
     /// <returns>The distance.</returns>
     /// <param name="pos1">Pos1.</param>
     /// <param name="pos2">Pos2.</param>
-    public static int GetDistance(Tuple<int, int> pos1, Tuple<int, int> pos2)
+    public static float GetDistance(Tuple<int, int> pos1, Tuple<int, int> pos2)
     {
         DebugInfos.WriteDebugMessage("GetDistance begin");
         double distance;
@@ -712,7 +762,7 @@ static class Tools
 
         DebugInfos.WriteDebugMessage("GetDistance end");
 
-        return Convert.ToInt32(Math.Floor(distance));
+        return (float)distance;
     }
 
     public static int Fibonacci(int n)
@@ -738,7 +788,8 @@ static class Tools
 
     public static float TimeDifferenceInMillisecond(DateTime t0, DateTime t1)
     {
-        return (t1.Second - t0.Second) * 1000.0f + (t1.Millisecond - t0.Millisecond) / 1000.0f;
+        return (float)((t1 - t0).TotalMilliseconds);
+        //return (t1.Second - t0.Second) * 1000.0f + (t1.Millisecond - t0.Millisecond) / 1000.0f;
     }
 
     public static void PrintMove(Tuple<int, int> move)
@@ -760,17 +811,14 @@ static class SimulationGame
     {
         DebugInfos.WriteDebugMessage("Simulation begin", debugLevel: DebugInfos.DEBUG);
 
-        for (int i = 0; agent.TotalMs < GameInfos.TIMEOUT_FOR_A_TURN_IN_MS && agent.SimRun <= GameInfos.MAX_SIMULATIONS_RUN; i++)
+        while (agent.TotalMs < GameInfos.TIMEOUT_FOR_A_TURN_IN_MS && agent.SimRun <= GameInfos.MAX_SIMULATIONS_RUN)
         {
-            int zombiesBefore;
-            int zombiesAfter;
             var t0 = DateTime.UtcNow;
             SimulationResult tmpResults = new SimulationResult();
 
             simulationInfos.SimulationSetup(gameInfos, nash);
-            zombiesBefore = simulationInfos.SimZombies.Count;
+
             tmpResults = Simulate(simulationInfos);
-            zombiesAfter = simulationInfos.SimZombies.Count;
 
             if (tmpResults.Points > agent.BestResult.Points ||
                 (tmpResults.Points == agent.BestResult.Points && tmpResults.Len < agent.BestResult.Len))
@@ -786,15 +834,19 @@ static class SimulationGame
                             $"& tempResults.Len [{tmpResults.Len}]" },
                         debugLevel: DebugInfos.INFOS
                     );
-                agent.BestResult = tmpResults;
+                agent.BestResult = new SimulationResult(tmpResults);
                 agent.NewBest = true;
                 agent.MoveNum = 0;
                 simulationInfos.SimCurrentBest = agent.BestResult.Points;
             }
 
             var t1 = DateTime.UtcNow;
-            agent.TotalMs += Tools.TimeDifferenceInMillisecond(t0, t1);
+            var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+            agent.TotalMs += simulationTime;
             agent.SimRun++;
+
+            if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+                Console.Error.WriteLine($"Simulation time [{simulationTime}ms]");
 
             if (agent.TotalMs > GameInfos.TIMEOUT_FOR_A_TURN_IN_MS)
             {
@@ -829,7 +881,7 @@ static class SimulationGame
 
         while (!simulationInfos.SimZombiesAllDead && !simulationInfos.SimFailure && simulationInfos.SimMovesCount < GameInfos.MAX_MOVES)
         {
-            // We we can't get more point that our best result so far, this simulation is a failure. Maybe we can do a break right now ! TODO: later try a break in the if.
+            // If we can't get more point that our best result so far, this simulation is a failure. Maybe we can do a break right now ! TODO: later try a break in the if.
             if ((MaxHypotheticalScore(simulationInfos) + simulationInfos.SimPoints) < simulationInfos.SimCurrentBest)
                 simulationInfos.SimFailure = true;
 
@@ -860,6 +912,7 @@ static class SimulationGame
 
     public static void Evaluate(SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("Evaluate begin");
 
         int tmpPoints;
@@ -882,19 +935,21 @@ static class SimulationGame
         }
 
         if (killableZombies.Any(x => x.Id == tmpId))
+        {
             simulationInfos.SimNashTargetDiedThisTurn = true;
+            simulationInfos.SimNash.Target = null;
+        }
 
         var zombiesToRemove = new HashSet<Zombie>(killableZombies);
         simulationInfos.SimZombies.RemoveAll(x => zombiesToRemove.Contains(x));
 
-        // TODO: Not sure this is really usefull. Maybe our target die this turn, do I not have to set the Nash target to null ? Try and see it later.
-        if (killableZombiesLen > 0)
-        {
-            if (simulationInfos.SimZombies.Any(x => x.Id == tmpId))
-                simulationInfos.SimNash.Target = simulationInfos.SimZombies.Single(x => x.Id == tmpId);
-        }
-
         DebugInfos.WriteDebugMessage("Evaluate end");
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"Evaluate time too long [{simulationTime}ms]");
+        }
     }
 
     /// <summary>
@@ -903,6 +958,7 @@ static class SimulationGame
     /// <param name="simulationInfos">Simulation infos.</param>
     public static void ComputePlayerTarget(SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("ComputePlayerTarget begin");
 
         Random rand = new Random();
@@ -929,10 +985,17 @@ static class SimulationGame
         }
 
         DebugInfos.WriteDebugMessage("ComputePlayerTarget end");
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"ComputePlayerTarget time too long [{simulationTime}ms]");
+        }
     }
 
     public static void Turn(List<Tuple<int, int>> moveHistory, SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("Turn begin");
 
         foreach (Zombie zombie in simulationInfos.SimZombies)
@@ -965,10 +1028,17 @@ static class SimulationGame
         }
 
         DebugInfos.WriteDebugMessage("Turn end");
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"Turn time too long [{simulationTime}ms]");
+        }
     }
 
     public static void FindZombieTarget(Zombie zombie, SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("FindZombieTarget begin");
 
         float minDist = float.PositiveInfinity;
@@ -996,6 +1066,12 @@ static class SimulationGame
         }
 
         DebugInfos.WriteDebugMessage("FindZombieTarget end");
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"FindZombieTarget time too long [{simulationTime}ms]");
+        }
     }
 
     public static void MoveZombie(Zombie zombie, PlayerNash nash)
@@ -1022,6 +1098,7 @@ static class SimulationGame
 
     public static bool NextPosZombie(Zombie zombie, PlayerNash nash, out Tuple<int, int> posOut)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("NextPosZombie begin");
 
         bool arrived = false;
@@ -1045,7 +1122,7 @@ static class SimulationGame
         }
 
         dist = Tools.GetDistance(zombie.Position, targetPos);
-        if (Math.Floor(dist) <= Zombie.MOUVEMENT)
+        if (dist <= Zombie.MOUVEMENT)
         {
             arrived = true;
             posOut = new Tuple<int, int>(targetPos.Item1, targetPos.Item2);
@@ -1061,11 +1138,19 @@ static class SimulationGame
 
         DebugInfos.WriteDebugMessage("NextPosZombie end");
 
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"NextPosZombie time too long [{simulationTime}ms]");
+        }
+
         return arrived;
     }
 
     public static bool NextPosNash(PlayerNash nash, out Tuple<int, int> posOut)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("NextPosPlayer begin");
 
         Tuple<int, int> destination;
@@ -1079,7 +1164,7 @@ static class SimulationGame
             destination = GetPlayerDestination(nash);
             distance = Tools.GetDistance(nash.Position, destination);
 
-            if (Math.Floor(distance) <= PlayerNash.MOUVEMENT)
+            if (distance <= PlayerNash.MOUVEMENT)
             {
                 arrived = true;
                 posOut = new Tuple<int, int>(destination.Item1, destination.Item2);
@@ -1095,16 +1180,24 @@ static class SimulationGame
         }
         else
         {
-            posOut = new Tuple<int, int>(1, 1);
+            posOut = new Tuple<int, int>(-1, -1);
         }
 
         DebugInfos.WriteDebugMessage("NextPosPlayer end");
+
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"NextPosNash time too long [{simulationTime}ms]");
+        }
 
         return arrived;
     }
 
     public static int ZombiesInRangeOfPlayer(List<Zombie> zombiesInRange, SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("ZombiesInRangeOfPlayer begin");
 
         int len = 0;
@@ -1112,10 +1205,7 @@ static class SimulationGame
 
         foreach (Zombie zombie in simulationInfos.SimZombies)
         {
-            dx = zombie.Position.Item1 - simulationInfos.SimNash.Position.Item1;
-            dy = zombie.Position.Item2 - simulationInfos.SimNash.Position.Item2;
-
-            if (Math.Floor(Math.Sqrt(Math.Pow(dx, 2) + Math.Pow(dy, 2))) <= PlayerNash.RANGE)
+            if (Tools.GetDistance(simulationInfos.SimNash.Position, zombie.Position) <= PlayerNash.RANGE)
             {
                 zombiesInRange.Add(zombie);
                 len++;
@@ -1124,11 +1214,19 @@ static class SimulationGame
 
         DebugInfos.WriteDebugMessage("ZombiesInRangeOfPlayer end");
 
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"ZombiesInRangeOfPlayer time too long [{simulationTime}ms]");
+        }
+
         return len;
     }
 
     public static void ZombiesEat(SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("ZombiesEat begin");
 
         List<int> zombieTargetIdTmp = new List<int>();
@@ -1145,6 +1243,13 @@ static class SimulationGame
         }
 
         DebugInfos.WriteDebugMessage("ZombiesEat end");
+
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"ZombiesEat time too long [{simulationTime}ms]");
+        }
     }
 
     public static bool ZombieArrivedAtTarget(Zombie zombie)
@@ -1178,6 +1283,8 @@ static class SimulationGame
         }
         else
         {
+            if (nash.NextPosition is null)
+                return new Tuple<int, int>(1, 1);
             return nash.NextPosition;
         }
 
@@ -1186,6 +1293,7 @@ static class SimulationGame
 
     public static int MaxHypotheticalScore(SimulationInfos simulationInfos)
     {
+        var t0 = DateTime.UtcNow;
         DebugInfos.WriteDebugMessage("MaxHypotheticalScore begin");
 
         int tmpPoints = 0;
@@ -1205,6 +1313,13 @@ static class SimulationGame
         }
 
         DebugInfos.WriteDebugMessage("MaxHypotheticalScore end");
+
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"MaxHypotheticalScore time too long [{simulationTime}ms]");
+        }
 
         return totPoints;
     }
