@@ -12,24 +12,25 @@ class Player
 {
     static void Main(string[] args)
     {
-        var myGame = new GameInfos();
-        bool foundValidMove = false;
+        GameInfos newGame = new GameInfos();
         SimulationAgent agent = new SimulationAgent();
-        SimulationInfos simulationInfos = new SimulationInfos();
         string[] inputs;
 
         // game loop
         while (true)
         {
+            /** 
+             * Initialize game infos with inputs.
+            */
             inputs = Console.ReadLine().Split(' ');
 
             var x = int.Parse(inputs[0]);
             var y = int.Parse(inputs[1]);
-            myGame.SetNashPosition(new Tuple<int, int>(x, y));
+            newGame.Nash.Position = new Tuple<int, int>(x, y);
 
             var humanCount = int.Parse(Console.ReadLine());
-            myGame.NumberOfHumans = humanCount;
-
+            newGame.NumberOfHumans = humanCount;
+            List<Human> humans = new List<Human>();
             for (var i = 0; i < humanCount; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
@@ -40,11 +41,13 @@ class Player
                                     humanId,
                                     new Tuple<int, int>(humanX, humanY)
                                 );
-                myGame.AddHuman(human);
+                humans.Add(human);
             }
+            newGame.Humans = new List<Human>(humans);
 
             var zombieCount = int.Parse(Console.ReadLine());
-            myGame.NumberOfZombies = zombieCount;
+            newGame.NumberOfZombies = zombieCount;
+            List<Zombie> zombies = new List<Zombie>();
             for (var i = 0; i < zombieCount; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
@@ -58,53 +61,48 @@ class Player
                                         new Tuple<int, int>(zombieX, zombieY),
                                         new Tuple<int, int>(zombieXNext, zombieYNext)
                                     );
+                zombies.Add(zombie);
+            }
+            newGame.Zombies = new List<Zombie>(zombies);
+            /** 
+             * end inputs
+            */
 
-                if (myGame.Zombies.Any(x => x.Id == zombieId))
-                {
-                    DebugInfos.WriteDebugMessage(
-                            "Main",
-                            new string[] { 
-                                $"zombieId [{zombieId}] ",
-                                $"should be in [{myGame.Zombies.Single(x => x.Id == zombieId).NextPosition}]",
-                                $"is in [{zombie.Position}]"
-                            },
-                            DebugInfos.DEBUG
-                        );
-                }
-                myGame.AddZombie(zombie);
+            /**
+             * Simulations begin
+            */
+            agent.NewBest = false;
+            SimulationGame.Simulation(agent, newGame, newGame.Nash);
+            /**
+             * Simulations end
+            */
+
+            foreach (Tuple<int, int> move in agent.BestResult.MoveList)
+            {
+                Console.Error.WriteLine($"{move}");
             }
 
-            agent.NewBest = false;
-            agent.TotalMs = 0.0f;
-            agent.SimRun = 0;
-            SimulationGame.Simulation(agent, simulationInfos, myGame, myGame.Nash);
-
+            /**
+             * Work with results.
+            */
             if (agent.BestResult.Len == 0)
                 Console.Error.WriteLine("No winning game found");
 
-            foundValidMove = false;
+            bool foundValidMove = false;
 
-            try
+            foundValidMove = false;
+            if (!agent.NewBest)
             {
-                if (agent.BestResult.MoveList.Count == 1)
+                if (Tools.IsMoveValid(agent.BestResult.MoveList[newGame.MoveNum]))
                 {
-                    Tools.PrintMove(agent.BestResult.MoveList.First());
+                    Tools.PrintMove(agent.BestResult.MoveList[newGame.MoveNum]);
                     foundValidMove = true;
-                    agent.MoveNum++;
-                }
-                else
-                {
-                    if (Tools.IsMoveValid(agent.BestResult.MoveList[agent.MoveNum]))
-                    {
-                        Tools.PrintMove(agent.BestResult.MoveList[agent.MoveNum]);
-                        foundValidMove = true;
-                        agent.MoveNum++;
-                    }
                 }
             }
-            catch (System.ArgumentOutOfRangeException ex)
+            else if (Tools.IsMoveValid(agent.BestResult.MoveList.First()))
             {
-                Console.Error.WriteLine($"ArgumentOutOfRangeException Raised with agent.MoveNum [{agent.MoveNum}] and agent.BestResult.MoveList.Count [{agent.BestResult.MoveList.Count}]");
+                Tools.PrintMove(agent.BestResult.MoveList.First());
+                foundValidMove = true;
             }
 
             if (!foundValidMove)
@@ -114,6 +112,11 @@ class Player
                         $"agent.BestResult.MoveList.Count [{agent.BestResult.MoveList.Count}] " +
                         $"agent.MoveNum [{agent.MoveNum}]");
             }
+
+            newGame.MoveNum++;
+            /**
+             * Work end
+            */
 
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
@@ -129,51 +132,41 @@ class GameInfos
 
     public const int MAX_X = 16000;
     public const int MAX_Y = 9000;
+
     public const int NASH_ID = -1;
+
+    public const int EMPTY_ZOMBIE = -4;
+    public const int EMPTY_HUMAN = -5;
+
     public const int MAX_ZOMBIES = 100;
     public const int MAX_HUMANS = 100;
     public const int MAX_MOVES = 100;
-    public const int MAX_SIMULATIONS_RUN = int.MaxValue;
-    public const int EMPTY_ZOMBIE = -4;
-    public const int EMPTY_HUMAN = -5;
-    public const float TIMEOUT_FOR_A_TURN_IN_MS = 99.0f;
 
+    public const int MAX_SIMULATIONS_RUN = int.MaxValue;
+    public const float TIMEOUT_FOR_A_TURN_IN_MS = 99.0f;
     public const float ACCEPTABLE_TIME_REPONSE_FOR_METHODS = 50.0f;
     #endregion
 
     #region FIELDS
-    private PlayerNash _nash = new PlayerNash();
-    private List<Human> _humans = new List<Human>();
-    private List<Zombie> _zombies = new List<Zombie>();
-
-    private int _numberOfHumans = 0;
-    private int _numberOfZombies = 0;
-    private int _moveNum = 0;
+    private int _numberOfHumans;
+    private int _numberOfZombies;
+    private int _moveNum;
+    private PlayerNash _nash;
+    private List<Human> _humans;
+    private List<Zombie> _zombies;
     #endregion
 
     #region CONSTRUCTORS
     public GameInfos()
     {
+        _nash = new PlayerNash();
+        _numberOfHumans = 0;
+        _numberOfZombies = 0;
+        _moveNum = 0;
     }
     #endregion
 
     #region PROPERTIES
-    /// <summary>
-    /// Gets the zombies.
-    /// </summary>
-    /// <value>The zombies.</value>
-    public List<Zombie> Zombies => _zombies;
-    /// <summary>
-    /// Gets the humans.
-    /// </summary>
-    /// <value>The humans.</value>
-    public List<Human> Humans => _humans;
-
-    /// <summary>
-    /// Gets or sets the move number.
-    /// </summary>
-    /// <value>The move number.</value>
-    public int MoveNum { get => _moveNum; set => _moveNum = value; }
     /// <summary>
     /// Gets or sets the number of humans.
     /// </summary>
@@ -185,132 +178,29 @@ class GameInfos
     /// <value>The number of zombies.</value>
     public int NumberOfZombies { get => _numberOfZombies; set => _numberOfZombies = value; }
     /// <summary>
-    /// Gets or sets the nash.
+    /// Gets or sets the move number.
+    /// </summary>
+    /// <value>The move number.</value>
+    public int MoveNum { get => _moveNum; set => _moveNum = value; }
+
+    /// <summary>
+    /// Gets or sets the player nash.
     /// </summary>
     /// <value>The nash.</value>
-    public PlayerNash Nash { get => _nash; set => _nash = value; }
+    internal PlayerNash Nash { get => _nash; set => _nash = value; }
+    /// <summary>
+    /// Gets or sets the humans.
+    /// </summary>
+    /// <value>The humans.</value>
+    internal List<Human> Humans { get => _humans; set => _humans = value; }
+    /// <summary>
+    /// Gets or sets the zombies.
+    /// </summary>
+    /// <value>The zombies.</value>
+    internal List<Zombie> Zombies { get => _zombies; set => _zombies = value; }
     #endregion
 
     #region METHODS
-    /// <summary>
-    /// Sets Nash position.
-    /// </summary>
-    /// <param name="pos">Position.</param>
-    public void SetNashPosition(Tuple<int, int> pos)
-    {
-        Nash.Position = pos;
-        if (Nash.NextPosition is null)
-            Nash.NextPosition = pos;
-
-        DebugInfos.WriteDebugMessage("SetNashPosition", new string[]
-            {
-                "_nash.Position = ", Nash.Position.ToString(), " ",
-                "_nash.NextPosition = ", Nash.NextPosition.ToString()
-            });
-    }
-
-    /// <summary>
-    /// Is zombie or human exist ?
-    /// </summary>
-    /// <returns><c>true</c>, if human or zombie already exist, <c>false</c> otherwise.</returns>
-    /// <param name="humanOrZombie">Human or zombie.</param>
-    /// <typeparam name="T">The 1st type parameter.</typeparam>
-    public bool IsExist<T>(T humanOrZombie)
-    {
-        if (humanOrZombie.GetType().Equals(typeof(Human)))
-            return Humans.Exists(x => x.Id == (humanOrZombie as Human).Id);
-        else if (humanOrZombie.GetType().Equals(typeof(Zombie)))
-            return Zombies.Exists(x => x.Id == (humanOrZombie as Zombie).Id);
-        else
-            return false;
-    }
-
-    /// <summary>
-    /// Add or update a human.
-    /// </summary>
-    /// <param name="human">Human.</param>
-    public void AddHuman(Human human)
-    {
-        if (!IsExist<Human>(human))
-        {
-            Humans.Add(human);
-            DebugInfos.WriteDebugMessage("AddHuman", new string[]
-                {
-                    "human.Id = ", human.Id.ToString(), " ",
-                    "human.Position = ", human.Position.ToString()
-                });
-        }
-        else
-            UpdateHumanPosition(human);
-    }
-
-    /// <summary>
-    /// Add or update a zombie.
-    /// </summary>
-    /// <param name="zombie">Zombie.</param>
-    public void AddZombie(Zombie zombie)
-    {
-        if (!IsExist<Zombie>(zombie))
-        {
-            Zombies.Add(zombie);
-            DebugInfos.WriteDebugMessage
-                (
-                    "AddZombie",
-                    new string[] { "zombie.Id = ", zombie.Id.ToString(), " ",
-                                    "zombie.Position = ", zombie.Position.ToString(), " ",
-                                    "zombie.NextPosition = ", zombie.NextPosition.ToString()
-                    },
-                    DebugInfos.DEBUG
-                );
-        }
-        else
-            UpdateZombiePosition(zombie);
-    }
-
-    /// <summary>
-    /// Updates the human position.
-    /// </summary>
-    /// <param name="human">Human.</param>
-    private void UpdateHumanPosition(Human human)
-    {
-        DebugInfos.WriteDebugMessage("UpdateHumanPosition begin", new string[]
-            {
-                    "human.Id = ", Humans.Single(x => x.Id == human.Id).Id.ToString(), " ",
-                    "human.Position = ", Humans.Single(x => x.Id == human.Id).Position.ToString()
-            });
-
-        Humans.Single(x => x.Id == human.Id).Position = human.Position;
-
-        DebugInfos.WriteDebugMessage("UpdateHumanPosition end", new string[]
-            {
-                    "human.Id = ", Humans.Single(x => x.Id == human.Id).Id.ToString(), " ",
-                    "human.Position = ", Humans.Single(x => x.Id == human.Id).Position.ToString()
-            });
-    }
-
-    /// <summary>
-    /// Updates the zombie position.
-    /// </summary>
-    /// <param name="zombie">Zombie.</param>
-    private void UpdateZombiePosition(Zombie zombie)
-    {
-        DebugInfos.WriteDebugMessage("UpdateZombiePosition begin", new string[]
-            {
-                    "zombie.Id = ", Zombies.Single(x => x.Id == zombie.Id).Id.ToString(), " ",
-                    "zombie.Position = ", Zombies.Single(x => x.Id == zombie.Id).Position.ToString(), " ",
-                    "zombie.NextPosition = ", Zombies.Single(x => x.Id == zombie.Id).NextPosition.ToString()
-            });
-
-        Zombies.Single(x => x.Id == zombie.Id).Position = zombie.Position;
-        Zombies.Single(x => x.Id == zombie.Id).NextPosition = zombie.NextPosition;
-
-        DebugInfos.WriteDebugMessage("UpdateZombiePosition end", new string[]
-            {
-                    "zombie.Id = ", Zombies.Single(x => x.Id == zombie.Id).Id.ToString(), " ",
-                    "zombie.Position = ", Zombies.Single(x => x.Id == zombie.Id).Position.ToString(), " ",
-                    "zombie.NextPosition = ", Zombies.Single(x => x.Id == zombie.Id).NextPosition.ToString()
-            });
-    }
     #endregion
 }
 
@@ -324,14 +214,20 @@ class PlayerNash
     #region FIELDS
     private Tuple<int, int> _position;
     private Tuple<int, int> _nextPosition;
-    private int _zombieIdMovingTo = -1;
-    private bool _targetingZombie = false;
-    private bool _arrived = false;
-    private Zombie _target = null;
+    private int _zombieIdMovingTo;
+    private bool _targetingZombie;
+    private bool _arrived;
+    private Zombie _target;
     #endregion
 
     #region CONSTRUCTORS
-    public PlayerNash() { }
+    public PlayerNash()
+    {
+        _zombieIdMovingTo = -1;
+        _targetingZombie = false;
+        _arrived = false;
+        _target = null;
+    }
 
     public PlayerNash(PlayerNash nash)
     {
@@ -355,6 +251,10 @@ class PlayerNash
     /// </summary>
     /// <value>The next position.</value>
     public Tuple<int, int> NextPosition { get => _nextPosition; set => _nextPosition = value; }
+    /// <summary>
+    /// Gets or sets the zombie identifier moving to.
+    /// </summary>
+    /// <value>The zombie identifier moving to.</value>
     public int ZombieIdMovingTo { get => _zombieIdMovingTo; set => _zombieIdMovingTo = value; }
     /// <summary>
     /// Gets or sets a value indicating whether this <see cref="T:Nash"/> targeting zombie.
@@ -400,12 +300,11 @@ class Human
     /// </summary>
     /// <value>The identifier.</value>
     public int Id => _id;
-
     /// <summary>
-    /// Gets or sets the position.
+    /// Gets the position.
     /// </summary>
     /// <value>The position.</value>
-    public Tuple<int, int> Position { get => _position; set => _position = value; }
+    public Tuple<int, int> Position => _position;
     #endregion
 }
 
@@ -467,15 +366,15 @@ class Zombie
     /// <value><c>true</c> if arrived; otherwise, <c>false</c>.</value>
     public bool Arrived { get => _arrived; set => _arrived = value; }
     /// <summary>
-    /// Gets or sets the target.
-    /// </summary>
-    /// <value>The target.</value>
-    internal Human Target { get => _target; set => _target = value; }
-    /// <summary>
     /// Gets or sets the closest human identifier.
     /// </summary>
     /// <value>The closest human identifier.</value>
     public int ClosestHumanId { get => _closestHumanId; set => _closestHumanId = value; }
+    /// <summary>
+    /// Gets or sets the target.
+    /// </summary>
+    /// <value>The target.</value>
+    internal Human Target { get => _target; set => _target = value; }
     #endregion
 }
 
@@ -484,20 +383,20 @@ class SimulationInfos
     #region Fields
     private PlayerNash _simNash;
     private Zombie _simNashTargetCpy;
-    private List<Zombie> _simZombies = new List<Zombie>();
-    private List<Human> _simHumans = new List<Human>();
+    private List<Zombie> _simZombies;
+    private List<Human> _simHumans;
 
-    private bool _simFailure = false;
-    private bool _simZombiesAllDead = false;
-    private bool _simZombiesDiedThisTurn = false;
-    private bool _simNashTargetDiedThisTurn = false;
+    private bool _simFailure;
+    private bool _simZombiesAllDead;
+    private bool _simZombiesDiedThisTurn;
+    private bool _simNashTargetDiedThisTurn;
 
-    private int _simPoints = 0;
-    private int _simTurnNum = 0;
-    private int _simCurrentBest = 0;
-    private int _simMovesCount = 0;
-    private int _simZombieCount = 0;
-    private int _simHumanCount = 0;
+    private int _simPoints;
+    private int _simTurnNum;
+    private int _simCurrentBest;
+    private int _simMovesCount;
+    private int _simZombieCount;
+    private int _simHumanCount;
 
     private int _simStartingRandomMovesNum;
     private int _simMaxStartingRandomMoves;
@@ -506,83 +405,67 @@ class SimulationInfos
     #region CONSTRUCTORS
     public SimulationInfos()
     {
-        SimFailure = false;
-        SimZombiesAllDead = false;
-        SimZombiesDiedThisTurn = false;
-        SimNashTargetDiedThisTurn = false;
+        _simZombies = new List<Zombie>();
+        _simHumans = new List<Human>();
 
-        SimPoints = 0;
-        SimTurnNum = 0;
-        SimMovesCount = 0;
-        SimZombieCount = SimZombies.Count;
-        SimHumanCount = SimHumans.Count;
+        _simFailure = false;
+        _simZombiesAllDead = false;
+        _simZombiesDiedThisTurn = false;
+        _simNashTargetDiedThisTurn = false;
 
-        SimStartingRandomMovesNum = -1;
+        _simPoints = 0;
+        _simTurnNum = 0;
+        _simCurrentBest = 0;
+        _simMovesCount = 0;
+        _simZombieCount = 0;
+        _simHumanCount = 0;
+
+        _simStartingRandomMovesNum = -1;
         _simMaxStartingRandomMoves = -1;
     }
     #endregion
 
-    #region Properties
-    /// <summary>
-    /// Gets the sim max starting random moves.
-    /// </summary>
-    /// <value>The sim max starting random moves.</value>
-    public int SimMaxStartingRandomMoves => _simMaxStartingRandomMoves;
-    /// <summary>
-    /// Gets or sets the sim nash.
-    /// </summary>
-    /// <value>The sim nash.</value>
-    public PlayerNash SimNash { get => _simNash; set => _simNash = value; }
-    /// <summary>
-    /// Gets or sets the sim nash target cpy.
-    /// </summary>
-    /// <value>The sim nash target cpy.</value>
-    public Zombie SimNashTargetCpy { get => _simNashTargetCpy; set => _simNashTargetCpy = value; }
-    /// <summary>
-    /// Gets or sets the sim zombies.
-    /// </summary>
-    /// <value>The sim zombies.</value>
-    public List<Zombie> SimZombies { get => _simZombies; set => _simZombies = value; }
-    /// <summary>
-    /// Gets or sets the sim humans.
-    /// </summary>
-    /// <value>The sim humans.</value>
-    public List<Human> SimHumans { get => _simHumans; set => _simHumans = value; }
-    /// <summary>
-    /// Gets or sets the sim current best.
-    /// </summary>
-    /// <value>The sim current best.</value>
-    public int SimCurrentBest { get => _simCurrentBest; set => _simCurrentBest = value; }
-    /// <summary>
-    /// Gets or sets the sim starting random moves number.
-    /// </summary>
-    /// <value>The sim starting random moves number.</value>
-    public int SimStartingRandomMovesNum { get => _simStartingRandomMovesNum; set => _simStartingRandomMovesNum = value; }
-    /// <summary>
-    /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim zombies all dead.
-    /// </summary>
-    /// <value><c>true</c> if sim zombies all dead; otherwise, <c>false</c>.</value>
-    public bool SimZombiesAllDead { get => _simZombiesAllDead; set => _simZombiesAllDead = value; }
+    #region PROPERTIES
     /// <summary>
     /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim failure.
     /// </summary>
     /// <value><c>true</c> if sim failure; otherwise, <c>false</c>.</value>
     public bool SimFailure { get => _simFailure; set => _simFailure = value; }
     /// <summary>
-    /// Gets or sets the sim moves count.
+    /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim zombies all dead.
     /// </summary>
-    /// <value>The sim moves count.</value>
-    public int SimMovesCount { get => _simMovesCount; set => _simMovesCount = value; }
+    /// <value><c>true</c> if sim zombies all dead; otherwise, <c>false</c>.</value>
+    public bool SimZombiesAllDead { get => _simZombiesAllDead; set => _simZombiesAllDead = value; }
+    /// <summary>
+    /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim zombies died this turn.
+    /// </summary>
+    /// <value><c>true</c> if sim zombies died this turn; otherwise, <c>false</c>.</value>
+    public bool SimZombiesDiedThisTurn { get => _simZombiesDiedThisTurn; set => _simZombiesDiedThisTurn = value; }
+    /// <summary>
+    /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim nash target died this turn.
+    /// </summary>
+    /// <value><c>true</c> if sim nash target died this turn; otherwise, <c>false</c>.</value>
+    public bool SimNashTargetDiedThisTurn { get => _simNashTargetDiedThisTurn; set => _simNashTargetDiedThisTurn = value; }
     /// <summary>
     /// Gets or sets the sim points.
     /// </summary>
     /// <value>The sim points.</value>
     public int SimPoints { get => _simPoints; set => _simPoints = value; }
     /// <summary>
-    /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim nash target died this turn.
+    /// Gets or sets the sim turn number.
     /// </summary>
-    /// <value><c>true</c> if sim nash target died this turn; otherwise, <c>false</c>.</value>
-    public bool SimNashTargetDiedThisTurn { get => _simNashTargetDiedThisTurn; set => _simNashTargetDiedThisTurn = value; }
+    /// <value>The sim turn number.</value>
+    public int SimTurnNum { get => _simTurnNum; set => _simTurnNum = value; }
+    /// <summary>
+    /// Gets or sets the sim current best.
+    /// </summary>
+    /// <value>The sim current best.</value>
+    public int SimCurrentBest { get => _simCurrentBest; set => _simCurrentBest = value; }
+    /// <summary>
+    /// Gets or sets the sim moves count.
+    /// </summary>
+    /// <value>The sim moves count.</value>
+    public int SimMovesCount { get => _simMovesCount; set => _simMovesCount = value; }
     /// <summary>
     /// Gets or sets the sim zombie count.
     /// </summary>
@@ -594,15 +477,35 @@ class SimulationInfos
     /// <value>The sim human count.</value>
     public int SimHumanCount { get => _simHumanCount; set => _simHumanCount = value; }
     /// <summary>
-    /// Gets or sets a value indicating whether this <see cref="T:SimulationInfos"/> sim zombies died this turn.
+    /// Gets or sets the sim starting random moves number.
     /// </summary>
-    /// <value><c>true</c> if sim zombies died this turn; otherwise, <c>false</c>.</value>
-    public bool SimZombiesDiedThisTurn { get => _simZombiesDiedThisTurn; set => _simZombiesDiedThisTurn = value; }
+    /// <value>The sim starting random moves number.</value>
+    public int SimStartingRandomMovesNum { get => _simStartingRandomMovesNum; set => _simStartingRandomMovesNum = value; }
     /// <summary>
-    /// Gets or sets the sim turn number.
+    /// Gets or sets the sim max starting random moves.
     /// </summary>
-    /// <value>The sim turn number.</value>
-    public int SimTurnNum { get => _simTurnNum; set => _simTurnNum = value; }
+    /// <value>The sim max starting random moves.</value>
+    public int SimMaxStartingRandomMoves { get => _simMaxStartingRandomMoves; set => _simMaxStartingRandomMoves = value; }
+    /// <summary>
+    /// Gets or sets the sim nash.
+    /// </summary>
+    /// <value>The sim nash.</value>
+    internal PlayerNash SimNash { get => _simNash; set => _simNash = value; }
+    /// <summary>
+    /// Gets or sets the sim nash target cpy.
+    /// </summary>
+    /// <value>The sim nash target cpy.</value>
+    internal Zombie SimNashTargetCpy { get => _simNashTargetCpy; set => _simNashTargetCpy = value; }
+    /// <summary>
+    /// Gets or sets the sim zombies.
+    /// </summary>
+    /// <value>The sim zombies.</value>
+    internal List<Zombie> SimZombies { get => _simZombies; set => _simZombies = value; }
+    /// <summary>
+    /// Gets or sets the sim humans.
+    /// </summary>
+    /// <value>The sim humans.</value>
+    internal List<Human> SimHumans { get => _simHumans; set => _simHumans = value; }
     #endregion
 
     #region METHODS
@@ -618,18 +521,7 @@ class SimulationInfos
         SimNash = new PlayerNash(nash);
 
         SimZombies = new List<Zombie>(gameInfos.Zombies);
-        /*for (int i = 0; i < gameInfos.Zombies.Count; i++)
-            _simZombies.Add(gameInfos.Zombies[i]);*/
-
         SimHumans = new List<Human>(gameInfos.Humans);
-        /*for (int i = 0; i < gameInfos.Humans.Count; i++)
-            _simHumans.Add(gameInfos.Humans[i]);*/
-
-        DebugInfos.WriteDebugMessage("SimulationSetup", new string[]
-            {
-                $"SimZombies.Count = {SimZombies.Count} ",
-                $"SimHumans.Count = {SimHumans.Count}",
-            }, debugLevel: DebugInfos.DEBUG);
 
         SimFailure = false;
         SimZombiesAllDead = false;
@@ -651,9 +543,9 @@ class SimulationAgent
 {
     #region FIELDS
     private int _simRun;
-    private bool _newBest;
-    private float _totalMs;
     private int _moveNum;
+    private float _totalMs;
+    private bool _newBest;
     private SimulationResult _bestResult;
     #endregion
 
@@ -675,20 +567,20 @@ class SimulationAgent
     /// <value>The sim run.</value>
     public int SimRun { get => _simRun; set => _simRun = value; }
     /// <summary>
-    /// Gets or sets a value indicating whether this <see cref="T:SimulationAgent"/> new best.
+    /// Gets or sets the move number.
     /// </summary>
-    /// <value><c>true</c> if new best; otherwise, <c>false</c>.</value>
-    public bool NewBest { get => _newBest; set => _newBest = value; }
+    /// <value>The move number.</value>
+    public int MoveNum { get => _moveNum; set => _moveNum = value; }
     /// <summary>
     /// Gets or sets the total ms.
     /// </summary>
     /// <value>The total ms.</value>
     public float TotalMs { get => _totalMs; set => _totalMs = value; }
     /// <summary>
-    /// Gets or sets the move number.
+    /// Gets or sets a value indicating whether this <see cref="T:SimulationAgent"/> new best.
     /// </summary>
-    /// <value>The move number.</value>
-    public int MoveNum { get => _moveNum; set => _moveNum = value; }
+    /// <value><c>true</c> if new best; otherwise, <c>false</c>.</value>
+    public bool NewBest { get => _newBest; set => _newBest = value; }
     /// <summary>
     /// Gets or sets the best result.
     /// </summary>
@@ -740,64 +632,6 @@ class SimulationResult
     #endregion
 }
 
-static class Tools
-{
-    /// <summary>
-    /// Gets the distance between 2 positions.
-    /// </summary>
-    /// <returns>The distance.</returns>
-    /// <param name="pos1">Pos1.</param>
-    /// <param name="pos2">Pos2.</param>
-    public static float GetDistance(Tuple<int, int> pos1, Tuple<int, int> pos2)
-    {
-        DebugInfos.WriteDebugMessage("GetDistance begin");
-        double distance;
-        var distX = 0;
-        var distY = 0;
-
-        distX = pos1.Item1 - pos2.Item1;
-        distY = pos1.Item2 - pos2.Item2;
-
-        distance = Math.Sqrt(Math.Pow(distX, 2) + Math.Pow(distY, 2));
-
-        DebugInfos.WriteDebugMessage("GetDistance end");
-
-        return (float)distance;
-    }
-
-    public static int Fibonacci(int n)
-    {
-        int w;
-        if (n <= 0) return 0;
-        if (n == 1) return 1;
-        int u = 0;
-        int v = 1;
-        for (int i = 2; i <= n; i++)
-        {
-            w = u + v;
-            u = v;
-            v = w;
-        };
-        return v;
-    }
-
-    public static bool IsMoveValid(Tuple<int, int> move)
-    {
-        return (int)Math.Floor((decimal)move.Item1) != -1 && (int)Math.Floor((decimal)move.Item2) != -1;
-    }
-
-    public static float TimeDifferenceInMillisecond(DateTime t0, DateTime t1)
-    {
-        return (float)((t1 - t0).TotalMilliseconds);
-        //return (t1.Second - t0.Second) * 1000.0f + (t1.Millisecond - t0.Millisecond) / 1000.0f;
-    }
-
-    public static void PrintMove(Tuple<int, int> move)
-    {
-        Console.WriteLine($"{(int)Math.Floor((decimal)move.Item1)} {(int)Math.Floor((decimal)move.Item2)}");
-    }
-}
-
 static class SimulationGame
 {
     /// <summary>
@@ -807,9 +641,12 @@ static class SimulationGame
     /// <param name="simulationInfos">Simulation infos.</param>
     /// <param name="gameInfos">Game infos.</param>
     /// <param name="nash">Nash.</param>
-    public static void Simulation(SimulationAgent agent, SimulationInfos simulationInfos, GameInfos gameInfos, PlayerNash nash)
+    public static void Simulation(SimulationAgent agent, GameInfos gameInfos, PlayerNash nash)
     {
         DebugInfos.WriteDebugMessage("Simulation begin", debugLevel: DebugInfos.DEBUG);
+        SimulationInfos simulationInfos = new SimulationInfos();
+
+        //Console.Error.WriteLine($"New Turn ! Nash is on [{nash.Position}]");
 
         while (agent.TotalMs < GameInfos.TIMEOUT_FOR_A_TURN_IN_MS && agent.SimRun <= GameInfos.MAX_SIMULATIONS_RUN)
         {
@@ -823,6 +660,7 @@ static class SimulationGame
             if (tmpResults.Points > agent.BestResult.Points ||
                 (tmpResults.Points == agent.BestResult.Points && tmpResults.Len < agent.BestResult.Len))
             {
+                //Console.Error.WriteLine($"New good Simulation ! Nash is on [{tmpResults.MoveList.First()}] for begining.");
                 DebugInfos.WriteDebugMessage
                     (
                         functionName: "Simulation",
@@ -837,7 +675,10 @@ static class SimulationGame
                 agent.BestResult = new SimulationResult(tmpResults);
                 agent.NewBest = true;
                 agent.MoveNum = 0;
-                simulationInfos.SimCurrentBest = agent.BestResult.Points;
+
+                // TODO: I think we don't need this ! Remove the Properties SimCurrentBest later.
+                simulationInfos.SimCurrentBest = agent.BestResult.Points; 
+                //Console.Error.WriteLine($"New good Simulation ! Nash is on [{tmpResults.MoveList.Last()}] for end.");
             }
 
             var t1 = DateTime.UtcNow;
@@ -883,7 +724,10 @@ static class SimulationGame
         {
             // If we can't get more point that our best result so far, this simulation is a failure. Maybe we can do a break right now ! TODO: later try a break in the if.
             if ((MaxHypotheticalScore(simulationInfos) + simulationInfos.SimPoints) < simulationInfos.SimCurrentBest)
+            {
                 simulationInfos.SimFailure = true;
+                break;
+            }
 
             // Simulate a turn of the game.
             Turn(simResult.MoveList, simulationInfos);
@@ -903,6 +747,11 @@ static class SimulationGame
         {
             simResult.Points = simulationInfos.SimPoints;
             simResult.Len = simulationInfos.SimMovesCount;
+
+            if (simResult.MoveList.Count == 1)
+            {
+                Console.Error.WriteLine($"Unbelievable, game win in 1 move ! {simulationInfos.SimZombies.Count} | {simulationInfos.SimHumans.Count} | {simulationInfos.SimNash.Position}");
+            }
         }
 
         DebugInfos.WriteDebugMessage("Simulate end");
@@ -910,45 +759,48 @@ static class SimulationGame
         return simResult;
     }
 
-    public static void Evaluate(SimulationInfos simulationInfos)
+    public static void Turn(List<Tuple<int, int>> moveHistory, SimulationInfos simulationInfos)
     {
         var t0 = DateTime.UtcNow;
-        DebugInfos.WriteDebugMessage("Evaluate begin");
+        var move = new Tuple<int, int>(-1, -1);
+        DebugInfos.WriteDebugMessage("Turn begin");
 
-        int tmpPoints;
-        int humanNum = simulationInfos.SimHumans.Count;
-        int humanPoints = 10 * humanNum * humanNum;
-        List<Zombie> killableZombies = new List<Zombie>();
-        int killableZombiesLen = ZombiesInRangeOfPlayer(killableZombies, simulationInfos);
-
-        int tmpId = (simulationInfos.SimNash.TargetingZombie) ? simulationInfos.SimNash.Target.Id : GameInfos.EMPTY_ZOMBIE;
-
-        for (int i = 0; i < killableZombiesLen; i++)
+        foreach (Zombie zombie in simulationInfos.SimZombies)
         {
-            tmpPoints = humanPoints;
+            FindZombieTarget(zombie, simulationInfos);
+            MoveZombie(zombie, simulationInfos.SimNash);
+        }
 
-            if (killableZombiesLen > 1)
+        move = GetPlayerDestination(simulationInfos.SimNash);
+        moveHistory.Add(move);
+        simulationInfos.SimMovesCount++;
+
+        MovePlayer(simulationInfos.SimNash);
+
+        Evaluate(simulationInfos);
+
+        ZombiesEat(simulationInfos);
+
+        if ((simulationInfos.SimHumans.Count) > 0 && (simulationInfos.SimZombies.Count > 0))
+        {
+            if (simulationInfos.SimNash.Arrived || simulationInfos.SimNashTargetDiedThisTurn)
             {
-                tmpPoints *= Tools.Fibonacci(i + 1);
+                ComputePlayerTarget(simulationInfos);
+                simulationInfos.SimNashTargetDiedThisTurn = false;
             }
-            simulationInfos.SimPoints += tmpPoints;
         }
-
-        if (killableZombies.Any(x => x.Id == tmpId))
+        else
         {
-            simulationInfos.SimNashTargetDiedThisTurn = true;
-            simulationInfos.SimNash.Target = null;
+            simulationInfos.SimFailure = (simulationInfos.SimHumans.Count <= 0);
+            simulationInfos.SimZombiesAllDead = (simulationInfos.SimZombies.Count <= 0);
         }
 
-        var zombiesToRemove = new HashSet<Zombie>(killableZombies);
-        simulationInfos.SimZombies.RemoveAll(x => zombiesToRemove.Contains(x));
-
-        DebugInfos.WriteDebugMessage("Evaluate end");
+        DebugInfos.WriteDebugMessage("Turn end");
         var t1 = DateTime.UtcNow;
         var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
         if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
         {
-            Console.Error.WriteLine($"Evaluate time too long [{simulationTime}ms]");
+            Console.Error.WriteLine($"Turn time too long [{simulationTime}ms]");
         }
     }
 
@@ -990,49 +842,6 @@ static class SimulationGame
         if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
         {
             Console.Error.WriteLine($"ComputePlayerTarget time too long [{simulationTime}ms]");
-        }
-    }
-
-    public static void Turn(List<Tuple<int, int>> moveHistory, SimulationInfos simulationInfos)
-    {
-        var t0 = DateTime.UtcNow;
-        DebugInfos.WriteDebugMessage("Turn begin");
-
-        foreach (Zombie zombie in simulationInfos.SimZombies)
-        {
-            FindZombieTarget(zombie, simulationInfos);
-            MoveZombie(zombie, simulationInfos.SimNash);
-        }
-
-        moveHistory.Add(GetPlayerDestination(simulationInfos.SimNash));
-        simulationInfos.SimMovesCount++;
-
-        MovePlayer(simulationInfos.SimNash);
-
-        Evaluate(simulationInfos);
-
-        ZombiesEat(simulationInfos);
-
-        if ((simulationInfos.SimHumans.Count) > 0 && (simulationInfos.SimZombies.Count > 0))
-        {
-            if (simulationInfos.SimNash.Arrived || simulationInfos.SimNashTargetDiedThisTurn)
-            {
-                ComputePlayerTarget(simulationInfos);
-                simulationInfos.SimNashTargetDiedThisTurn = false;
-            }
-        }
-        else
-        {
-            simulationInfos.SimFailure = (simulationInfos.SimHumans.Count <= 0);
-            simulationInfos.SimZombiesAllDead = (simulationInfos.SimZombies.Count <= 0);
-        }
-
-        DebugInfos.WriteDebugMessage("Turn end");
-        var t1 = DateTime.UtcNow;
-        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
-        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
-        {
-            Console.Error.WriteLine($"Turn time too long [{simulationTime}ms]");
         }
     }
 
@@ -1083,17 +892,6 @@ static class SimulationGame
         zombie.Position = zombiePosition;
 
         DebugInfos.WriteDebugMessage("MoveZombie end");
-    }
-
-    public static void MovePlayer(PlayerNash nash)
-    {
-        DebugInfos.WriteDebugMessage("MovePlayer begin");
-
-        Tuple<int, int> nashNextPos;
-        nash.Arrived = NextPosNash(nash, out nashNextPos);
-        nash.Position = nashNextPos;
-
-        DebugInfos.WriteDebugMessage("MovePlayer end");
     }
 
     public static bool NextPosZombie(Zombie zombie, PlayerNash nash, out Tuple<int, int> posOut)
@@ -1148,6 +946,56 @@ static class SimulationGame
         return arrived;
     }
 
+    /// <summary>
+    /// Gets the player destination.
+    /// If Nash is targetting a zombie, the destination will be the next position of this zombie.
+    /// Oterwise the destination will be the Nash.NextPosition.
+    /// </summary>
+    /// <returns>The player destination.</returns>
+    /// <param name="nash">Nash.</param>
+    public static Tuple<int, int> GetPlayerDestination(PlayerNash nash)
+    {
+        DebugInfos.WriteDebugMessage("GetPlayerDestination begin");
+
+        Zombie target;
+        Tuple<int, int> destination;
+
+        if (nash.TargetingZombie && nash.Target != null)
+        {
+            target = nash.Target;
+            NextPosZombie(target, nash, out destination);
+
+            if (destination is null)
+                return new Tuple<int, int>(-1, -1);
+
+            return destination;
+        }
+        else
+        {
+            if (nash.NextPosition is null)
+                return new Tuple<int, int>(-1, -1);
+
+            return nash.NextPosition;
+        }
+
+        DebugInfos.WriteDebugMessage("GetPlayerDestination end");
+    }
+
+    /// <summary>
+    /// Moves the player.
+    /// </summary>
+    /// <param name="nash">Nash.</param>
+    public static void MovePlayer(PlayerNash nash)
+    {
+        DebugInfos.WriteDebugMessage("MovePlayer begin");
+
+        Tuple<int, int> nashNextPos;
+        nash.Arrived = NextPosNash(nash, out nashNextPos);
+        nash.Position = nashNextPos;
+
+        DebugInfos.WriteDebugMessage("MovePlayer end");
+    }
+
     public static bool NextPosNash(PlayerNash nash, out Tuple<int, int> posOut)
     {
         var t0 = DateTime.UtcNow;
@@ -1193,6 +1041,48 @@ static class SimulationGame
         }
 
         return arrived;
+    }
+
+    public static void Evaluate(SimulationInfos simulationInfos)
+    {
+        var t0 = DateTime.UtcNow;
+        DebugInfos.WriteDebugMessage("Evaluate begin");
+
+        int tmpPoints;
+        int humanNum = simulationInfos.SimHumans.Count;
+        int humanPoints = 10 * humanNum * humanNum;
+        List<Zombie> killableZombies = new List<Zombie>();
+        int killableZombiesLen = ZombiesInRangeOfPlayer(killableZombies, simulationInfos);
+
+        int tmpId = (simulationInfos.SimNash.TargetingZombie) ? simulationInfos.SimNash.Target.Id : GameInfos.EMPTY_ZOMBIE;
+
+        for (int i = 0; i < killableZombiesLen; i++)
+        {
+            tmpPoints = humanPoints;
+
+            if (killableZombiesLen > 1)
+            {
+                tmpPoints *= Tools.Fibonacci(i + 1);
+            }
+            simulationInfos.SimPoints += tmpPoints;
+        }
+
+        if (killableZombies.Any(x => x.Id == tmpId))
+        {
+            simulationInfos.SimNashTargetDiedThisTurn = true;
+            simulationInfos.SimNash.Target = null;
+        }
+
+        var zombiesToRemove = new HashSet<Zombie>(killableZombies);
+        simulationInfos.SimZombies.RemoveAll(x => zombiesToRemove.Contains(x));
+
+        DebugInfos.WriteDebugMessage("Evaluate end");
+        var t1 = DateTime.UtcNow;
+        var simulationTime = Tools.TimeDifferenceInMillisecond(t0, t1);
+        if (simulationTime > GameInfos.ACCEPTABLE_TIME_REPONSE_FOR_METHODS)
+        {
+            Console.Error.WriteLine($"Evaluate time too long [{simulationTime}ms]");
+        }
     }
 
     public static int ZombiesInRangeOfPlayer(List<Zombie> zombiesInRange, SimulationInfos simulationInfos)
@@ -1261,36 +1151,6 @@ static class SimulationGame
         return (int)zombie.Position.Item1 == (int)zombie.Target.Position.Item1 && (int)zombie.Position.Item2 == (int)zombie.Target.Position.Item2;
     }
 
-    /// <summary>
-    /// Gets the player destination.
-    /// If Nash is targetting a zombie, the destination will be the next position of this zombie.
-    /// Oterwise the destination will be the Nash.NextPosition.
-    /// </summary>
-    /// <returns>The player destination.</returns>
-    /// <param name="nash">Nash.</param>
-    public static Tuple<int, int> GetPlayerDestination(PlayerNash nash)
-    {
-        DebugInfos.WriteDebugMessage("GetPlayerDestination begin");
-
-        Zombie target;
-        Tuple<int, int> destination;
-
-        if (nash.TargetingZombie && nash.Target != null)
-        {
-            target = nash.Target;
-            NextPosZombie(target, nash, out destination);
-            return destination;
-        }
-        else
-        {
-            if (nash.NextPosition is null)
-                return new Tuple<int, int>(1, 1);
-            return nash.NextPosition;
-        }
-
-        DebugInfos.WriteDebugMessage("GetPlayerDestination end");
-    }
-
     public static int MaxHypotheticalScore(SimulationInfos simulationInfos)
     {
         var t0 = DateTime.UtcNow;
@@ -1322,6 +1182,63 @@ static class SimulationGame
         }
 
         return totPoints;
+    }
+}
+
+static class Tools
+{
+    /// <summary>
+    /// Gets the distance between 2 positions.
+    /// </summary>
+    /// <returns>The distance.</returns>
+    /// <param name="pos1">Pos1.</param>
+    /// <param name="pos2">Pos2.</param>
+    public static float GetDistance(Tuple<int, int> pos1, Tuple<int, int> pos2)
+    {
+        DebugInfos.WriteDebugMessage("GetDistance begin");
+        double distance;
+        var distX = 0;
+        var distY = 0;
+
+        distX = pos1.Item1 - pos2.Item1;
+        distY = pos1.Item2 - pos2.Item2;
+
+        distance = Math.Sqrt(Math.Pow(distX, 2) + Math.Pow(distY, 2));
+
+        DebugInfos.WriteDebugMessage("GetDistance end");
+
+        return (float)distance;
+    }
+
+    public static int Fibonacci(int n)
+    {
+        int w;
+        if (n <= 0) return 0;
+        if (n == 1) return 1;
+        int u = 0;
+        int v = 1;
+        for (int i = 2; i <= n; i++)
+        {
+            w = u + v;
+            u = v;
+            v = w;
+        };
+        return v;
+    }
+
+    public static bool IsMoveValid(Tuple<int, int> move)
+    {
+        return move.Item1 != -1 && move.Item2 != -1;
+    }
+
+    public static float TimeDifferenceInMillisecond(DateTime t0, DateTime t1)
+    {
+        return (float)((t1 - t0).TotalMilliseconds);
+    }
+
+    public static void PrintMove(Tuple<int, int> move)
+    {
+        Console.WriteLine($"{move.Item1} {move.Item2}");
     }
 }
 
