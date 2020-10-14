@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define DEBUG_MODE
+
+using System;
 using System.Linq;
 using System.IO;
 using System.Text;
@@ -61,26 +63,13 @@ class Player
                 simulation.NewBest = false;
             }
 
-            if (simulation.BestSimulation.Moves.Count == 0)
-                Console.Error.WriteLine("NO MOVES !!!!");
+#if DEBUG_MODE
+            DebugInfos.WriteSimulTurnInfos(gameInfosDebug.DebugInfosForTurn[simulation.NumTurn], DebugInfos.DEBUG);
+#endif
 
-            Console.Error.WriteLine($"NumTurn [{simulation.NumTurn}] && {gameInfosDebug.DebugInfosForTurn.Count}");
-
-            //foreach (DebugInfosForEachTurn inf in gameInfosDebug.DebugInfosForTurn)
-            //{
-            //    DebugInfos.WriteSimulTurnInfos(inf, DebugInfos.INFOS);
-            //}
-            DebugInfos.WriteSimulTurnInfos(gameInfosDebug.DebugInfosForTurn[simulation.NumTurn], DebugInfos.INFOS);
-
-            //Tools.PrintMove(simResult.Move);
             Tools.PrintMove(simulation.BestSimulation.Moves[simulation.NumTurn]);
 
             simulation.NumTurn++;
-
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
-
-            //Console.WriteLine("0 0"); // Your destination coordinates
 
         }
     }
@@ -88,8 +77,8 @@ class Player
 
 class GameInfos
 {
-    #region CONSTANTES
-    public const int LEVEL_DEBUG = 3;
+#region CONSTANTES
+    public const int LEVEL_DEBUG = 0;
 
     public const int MAX_X = 16000;
     public const int MAX_Y = 9000;
@@ -97,17 +86,13 @@ class GameInfos
     public const int NASH_ID = -1;
 
     public const int EMPTY_ZOMBIE = -4;
-    public const int EMPTY_HUMAN = -5;
 
-    public const int MAX_ZOMBIES = 100;
-    public const int MAX_HUMANS = 100;
     public const int MAX_MOVES = 100;
 
     public const int MAX_SIMULATIONS_RUN = int.MaxValue;
     public const float TIMEOUT_FOR_A_TURN_IN_MS = 140.0f;
-    public const float ACCEPTABLE_TIME_REPONSE_FOR_METHODS = 50.0f;
-    public const int MAX_SIMULATION_RANDOM_STARTING_MOVES = 0;
-    #endregion
+    public const int MAX_SIMULATION_RANDOM_STARTING_MOVES = 2;
+#endregion
 }
 
 class GameTurnInfos
@@ -121,9 +106,7 @@ class GameTurnInfos
     {
         Nash = new PlayerNash(nash);
         SetHumansOrZombies(humans);
-        //Humans = new List<Human>(humans);
         SetHumansOrZombies(zombies);
-        //Zombies = new List<Zombie>(zombies);
         NashTargetDiedThisTurn = false;
     }
 
@@ -152,10 +135,10 @@ class GameTurnInfos
 
 class PlayerNash
 {
-    #region CONSTANTES
+#region CONSTANTES
     public const int MOUVEMENT = 1000;
     public const int RANGE = 2000;
-    #endregion
+#endregion
 
     public Tuple<int, int> Position { get; set; }
     public Tuple<int, int> NextPosition { get; set; }
@@ -199,9 +182,9 @@ class Human
 
 class Zombie
 {
-    #region CONSTANTES
+#region CONSTANTES
     public const int MOUVEMENT = 400;
-    #endregion
+#endregion
 
     public int Id { get; }
     public Tuple<int, int> Position { get; set; }
@@ -258,8 +241,6 @@ class SimulationGame
         SimulationResult simResult = new SimulationResult();
         SimulationAgent agent = new SimulationAgent();
 
-        Console.Error.WriteLine($"How many zombie : [{TurnInfos.Zombies.Count}]");
-
         while (agent.TotalMs < GameInfos.TIMEOUT_FOR_A_TURN_IN_MS && agent.SimRun <= GameInfos.MAX_SIMULATIONS_RUN)
         {
             var t0 = DateTime.UtcNow;
@@ -279,9 +260,6 @@ class SimulationGame
             agent.TotalMs += Tools.TimeDifferenceInMillisecond(t0, t1);
             agent.SimRun++;
         }
-
-        if (NewBest)
-            Console.Error.WriteLine($"number of turn in debug {gameInfosDebug.DebugInfosForTurn.Count}");
 
         DebugInfos.WriteDebugMessage(
                 functionName: "Simulation end",
@@ -310,15 +288,15 @@ class SimulationGame
             // Simulate a turn of the game.
             simInfos.Moves.Add(Turn(infosTurn, sr, simInfos));
 
+#if DEBUG_MODE
             turnInfosDebug.Nash = infosTurn.Nash;
-            //turnInfosDebug.Humans = new List<Human>(infosTurn.Humans);
             turnInfosDebug.SetHumansOrZombies(infosTurn.Humans);
-            //turnInfosDebug.Zombies = new List<Zombie>(infosTurn.Zombies);
             turnInfosDebug.SetHumansOrZombies(infosTurn.Zombies);
             turnInfosDebug.Points = sr.Points;
             turnInfosDebug.Move = simInfos.Moves.Last();
             turnInfosDebug.NumTurn = simInfos.SimMovesCount;
             gameDebug.DebugInfosForTurn.Add(new DebugInfosForEachTurn(turnInfosDebug));
+#endif
 
             simInfos.SimMovesCount++;
         }
@@ -331,9 +309,9 @@ class SimulationGame
             BestSimulation = simInfos;
             NewBest = true;
 
+#if DEBUG_MODE
             gameInfosDebug.SetDebugInfosForTurn(gameDebug.DebugInfosForTurn);
-
-            Console.Error.WriteLine($"NEW BEST {sr.Points} {BestSimulation.SimPoints}");
+#endif
         }
 
         return sr;
@@ -657,15 +635,8 @@ class SimulationInfos
 
 static class Tools
 {
-    /// <summary>
-    /// Gets the distance between 2 positions.
-    /// </summary>
-    /// <returns>The distance.</returns>
-    /// <param name="pos1">Pos1.</param>
-    /// <param name="pos2">Pos2.</param>
     public static float GetDistance(Tuple<int, int> pos1, Tuple<int, int> pos2)
     {
-        DebugInfos.WriteDebugMessage("GetDistance begin");
         double distance;
         var distX = 0;
         var distY = 0;
@@ -674,8 +645,6 @@ static class Tools
         distY = pos1.Item2 - pos2.Item2;
 
         distance = Math.Sqrt(Math.Pow(distX, 2) + Math.Pow(distY, 2));
-
-        DebugInfos.WriteDebugMessage("GetDistance end");
 
         return (float)distance;
     }
@@ -777,7 +746,6 @@ class DebugInfosForEachTurn
     public List<Human> Humans { get; set; }
     public List<Zombie> Zombies { get; set; }
     public int Points { get; set; }
-    //public List<Tuple<int, int>> Moves { get; set; }
     public Tuple<int, int> Move { get; set; }
     public int NumTurn { get; set; }
 
