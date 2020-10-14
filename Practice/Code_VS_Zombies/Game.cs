@@ -15,23 +15,25 @@ class Player
     static void Main(string[] args)
     {
         string[] inputs;
-        SimulationGame simulation = new SimulationGame();
+        var previousHumansCount = 0;
+        var previousZombiesCount = 0;
+        var simulation = new SimulationGame();
 
-        GameInfosForDebug gameInfosDebug = new GameInfosForDebug();
+        var gameInfosDebug = new GameInfosForDebug();
 
         // game loop
         while (true)
         {
             inputs = Console.ReadLine().Split(' ');
-            Tuple<int, int> nashPosition = new Tuple<int, int>(int.Parse(inputs[0]), int.Parse(inputs[1]));
-            PlayerNash nash = new PlayerNash(nashPosition);
+            var nashPosition = new Tuple<int, int>(int.Parse(inputs[0]), int.Parse(inputs[1]));
+            var nash = new PlayerNash(nashPosition);
 
             int humanCount = int.Parse(Console.ReadLine());
-            List<Human> humans = new List<Human>();
-            for (int i = 0; i < humanCount; i++)
+            var humans = new List<Human>();
+            for (var i = 0; i < humanCount; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
-                Human human = new Human(
+                var human = new Human(
                     id: int.Parse(inputs[0]),
                     pos: new Tuple<int, int>(int.Parse(inputs[1]), int.Parse(inputs[2]))
                 );
@@ -39,11 +41,11 @@ class Player
             }
 
             int zombieCount = int.Parse(Console.ReadLine());
-            List<Zombie> zombies = new List<Zombie>();
-            for (int i = 0; i < zombieCount; i++)
+            var zombies = new List<Zombie>();
+            for (var i = 0; i < zombieCount; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
-                Zombie zombie = new Zombie(
+                var zombie = new Zombie(
                     id: int.Parse(inputs[0]),
                     pos: new Tuple<int, int>(int.Parse(inputs[1]), int.Parse(inputs[2])),
                     nextPos: new Tuple<int, int>(int.Parse(inputs[3]), int.Parse(inputs[4]))
@@ -51,11 +53,28 @@ class Player
                 zombies.Add(zombie);
             }
 
-            GameTurnInfos turnInfos = new GameTurnInfos(nash, humans, zombies);
+            if (zombieCount < previousZombiesCount)
+            {
+                int zombiesDead = previousZombiesCount - zombieCount;
+                int humanPoints = 10 * previousHumansCount * previousHumansCount;
+
+                for (var i = 0; i < zombiesDead; i++)
+                {
+                    var tmpPoints = humanPoints;
+
+                    if (zombiesDead > 1)
+                    {
+                        tmpPoints *= Tools.Fibonacci(i + 1);
+                    }
+                    simulation.ActualScore += tmpPoints;
+                }
+            }
+
+            var turnInfos = new GameTurnInfos(nash, humans, zombies);
 
             // For each turn, we want to simulate the maximum of game played to find the best next move possible.
             simulation.InitTurnInfos(turnInfos);
-            SimulationResult simResult = simulation.Simulation(gameInfosDebug);
+            var simResult = simulation.Simulation(gameInfosDebug);
 
             if (simulation.NewBest)
             {
@@ -69,15 +88,17 @@ class Player
 
             Tools.PrintMove(simulation.BestSimulation.Moves[simulation.NumTurn]);
 
-            simulation.NumTurn++;
+            previousHumansCount = humanCount;
+            previousZombiesCount = zombieCount;
 
+            simulation.NumTurn++;
         }
     }
 }
 
 class GameInfos
 {
-#region CONSTANTES
+    #region CONSTANTES
     public const int LEVEL_DEBUG = 0;
 
     public const int MAX_X = 16000;
@@ -92,7 +113,7 @@ class GameInfos
     public const int MAX_SIMULATIONS_RUN = int.MaxValue;
     public const float TIMEOUT_FOR_A_TURN_IN_MS = 140.0f;
     public const int MAX_SIMULATION_RANDOM_STARTING_MOVES = 2;
-#endregion
+    #endregion
 }
 
 class GameTurnInfos
@@ -112,7 +133,7 @@ class GameTurnInfos
 
     public void SetHumansOrZombies<T>(List<T> objects)
     {
-        bool isHumans = false;
+        var isHumans = false;
         if (typeof(T) == typeof(Human))
         {
             isHumans = true;
@@ -135,10 +156,10 @@ class GameTurnInfos
 
 class PlayerNash
 {
-#region CONSTANTES
+    #region CONSTANTES
     public const int MOUVEMENT = 1000;
     public const int RANGE = 2000;
-#endregion
+    #endregion
 
     public Tuple<int, int> Position { get; set; }
     public Tuple<int, int> NextPosition { get; set; }
@@ -182,9 +203,9 @@ class Human
 
 class Zombie
 {
-#region CONSTANTES
+    #region CONSTANTES
     public const int MOUVEMENT = 400;
-#endregion
+    #endregion
 
     public int Id { get; }
     public Tuple<int, int> Position { get; set; }
@@ -216,6 +237,7 @@ class SimulationGame
     public GameTurnInfos TurnInfos { get; set; }
     public SimulationInfos BestSimulation { get; set; }
     public int NumTurn { get; set; }
+    public int ActualScore { get; set; }
 
     public bool NewBest { get; set; }
 
@@ -225,6 +247,7 @@ class SimulationGame
         BestSimulation = new SimulationInfos();
         NewBest = false;
         NumTurn = 0;
+        ActualScore = 0;
     }
 
     public void InitTurnInfos(GameTurnInfos turnInfos)
@@ -238,20 +261,20 @@ class SimulationGame
 
     public SimulationResult Simulation(GameInfosForDebug gameInfosDebug)
     {
-        SimulationResult simResult = new SimulationResult();
-        SimulationAgent agent = new SimulationAgent();
+        var simResult = new SimulationResult();
+        var agent = new SimulationAgent();
 
         while (agent.TotalMs < GameInfos.TIMEOUT_FOR_A_TURN_IN_MS && agent.SimRun <= GameInfos.MAX_SIMULATIONS_RUN)
         {
             var t0 = DateTime.UtcNow;
 
-            GameTurnInfos infosTurn = new GameTurnInfos(
+            var infosTurn = new GameTurnInfos(
                 nash: TurnInfos.Nash,
                 humans: TurnInfos.Humans,
                 zombies: TurnInfos.Zombies
             );
 
-            SimulationResult tmpResult = SimulateGame(infosTurn, gameInfosDebug);
+            var tmpResult = SimulateGame(infosTurn, gameInfosDebug);
 
             if (tmpResult.Points >= simResult.Points)
                 simResult = new SimulationResult(tmpResult);
@@ -272,12 +295,13 @@ class SimulationGame
 
     private SimulationResult SimulateGame(GameTurnInfos infosTurn, GameInfosForDebug gameInfosDebug)
     {
-        Random rand = new Random();
-        SimulationResult sr = new SimulationResult();
-        SimulationInfos simInfos = new SimulationInfos();
-        List<Tuple<int, int>> moves = new List<Tuple<int, int>>();
-        GameInfosForDebug gameDebug = new GameInfosForDebug();
-        DebugInfosForEachTurn turnInfosDebug = new DebugInfosForEachTurn();
+        var rand = new Random();
+        var sr = new SimulationResult();
+        var simInfos = new SimulationInfos();
+        var moves = new List<Tuple<int, int>>();
+        var gameDebug = new GameInfosForDebug();
+        var turnInfosDebug = new DebugInfosForEachTurn();
+        var scoreForThisTurn = 0;
 
         simInfos.SimStartingRandomMovesNum = rand.Next(GameInfos.MAX_SIMULATION_RANDOM_STARTING_MOVES + 1);
 
@@ -301,14 +325,14 @@ class SimulationGame
             simInfos.SimMovesCount++;
         }
 
-        if (simInfos.SimZombieAllDead && !simInfos.SimFailure && sr.Points > BestSimulation.SimPoints)
+        if (simInfos.SimZombieAllDead && 
+            !simInfos.SimFailure && 
+            ((sr.Points + ActualScore) > BestSimulation.SimPoints ||
+            (sr.Points + ActualScore) == BestSimulation.SimPoints && (simInfos.SimMovesCount < (BestSimulation.SimMovesCount - NumTurn))))
         {
-            sr.Move = simInfos.Moves.First();
-
-            simInfos.SimPoints = sr.Points;
+            simInfos.SimPoints = sr.Points + ActualScore;
             BestSimulation = simInfos;
             NewBest = true;
-
 #if DEBUG_MODE
             gameInfosDebug.SetDebugInfosForTurn(gameDebug.DebugInfosForTurn);
 #endif
@@ -319,7 +343,7 @@ class SimulationGame
 
     private Tuple<int, int> Turn(GameTurnInfos infosTurn, SimulationResult simResult, SimulationInfos simInfos)
     {
-        Tuple<int, int> move = new Tuple<int, int>(-1, -1);
+        var move = new Tuple<int, int>(-1, -1);
 
         foreach (Zombie zombie in infosTurn.Zombies)
         {
@@ -357,13 +381,6 @@ class SimulationGame
         float minDist = float.PositiveInfinity;
         float tmpDist;
 
-        tmpDist = Tools.GetDistance(zombie.Position, infosTurn.Nash.Position);
-        if (tmpDist < minDist)
-        {
-            zombie.Target = null;
-            minDist = tmpDist;
-        }
-
         foreach (Human human in infosTurn.Humans)
         {
             tmpDist = Tools.GetDistance(zombie.Position, human.Position);
@@ -373,18 +390,24 @@ class SimulationGame
                 minDist = tmpDist;
             }
         }
+
+        tmpDist = Tools.GetDistance(zombie.Position, infosTurn.Nash.Position);
+        if (tmpDist < minDist)
+        {
+            zombie.Target = null;
+            minDist = tmpDist;
+        }
     }
 
     private void MoveZombie(Zombie zombie, PlayerNash nash)
     {
-        Tuple<int, int> zombiePosition;
-        zombie.Arrived = NextPosZombie(zombie, nash, out zombiePosition);
+        zombie.Arrived = NextPosZombie(zombie, nash, out var zombiePosition);
         zombie.Position = zombiePosition;
     }
 
     private bool NextPosZombie(Zombie zombie, PlayerNash nash, out Tuple<int, int> posOut)
     {
-        bool arrived = false;
+        var arrived = false;
         Tuple<int, int> targetPos;
         float dist;
         float t;
@@ -420,12 +443,11 @@ class SimulationGame
     private Tuple<int, int> GetPlayerDestination(PlayerNash nash)
     {
         Zombie target;
-        Tuple<int, int> destination;
 
         if (nash.Target != null)
         {
             target = nash.Target;
-            NextPosZombie(target, nash, out destination);
+            NextPosZombie(target, nash, out var destination);
 
             if (destination is null)
                 return new Tuple<int, int>(-1, -1);
@@ -443,8 +465,7 @@ class SimulationGame
 
     private void MovePlayer(PlayerNash nash)
     {
-        Tuple<int, int> nashNextPos;
-        nash.Arrived = NextPosNash(nash, out nashNextPos);
+        nash.Arrived = NextPosNash(nash, out var nashNextPos);
         nash.Position = nashNextPos;
     }
 
@@ -454,7 +475,7 @@ class SimulationGame
         float distance;
         float t;
 
-        bool arrived = false;
+        var arrived = false;
 
         if (nash.Target != null || nash.NextPosition != null)
         {
@@ -488,12 +509,12 @@ class SimulationGame
         int tmpPoints;
         int humanNum = infosTurn.Humans.Count;
         int humanPoints = 10 * humanNum * humanNum;
-        List<Zombie> killableZombies = new List<Zombie>();
-        int killableZombiesLen = ZombiesInRangeOfPlayer(killableZombies, infosTurn);
+        var killableZombies = new List<Zombie>();
+        var killableZombiesLen = ZombiesInRangeOfPlayer(killableZombies, infosTurn);
 
-        int tmpId = (infosTurn.Nash.Target != null) ? infosTurn.Nash.Target.Id : GameInfos.EMPTY_ZOMBIE;
+        var tmpId = (infosTurn.Nash.Target != null) ? infosTurn.Nash.Target.Id : GameInfos.EMPTY_ZOMBIE;
 
-        for (int i = 0; i < killableZombiesLen; i++)
+        for (var i = 0; i < killableZombiesLen; i++)
         {
             tmpPoints = humanPoints;
 
@@ -516,7 +537,7 @@ class SimulationGame
 
     private int ZombiesInRangeOfPlayer(List<Zombie> zombiesInRange, GameTurnInfos infosTurn)
     {
-        int len = 0;
+        var len = 0;
         float dx, dy;
 
         foreach (Zombie zombie in infosTurn.Zombies)
@@ -533,7 +554,7 @@ class SimulationGame
 
     private void ZombiesEat(GameTurnInfos infosTurn)
     {
-        List<int> zombieTargetIdTmp = new List<int>();
+        var zombieTargetIdTmp = new List<int>();
 
         foreach (Zombie zombie in infosTurn.Zombies.Where(x => x.Target != null))
         {
@@ -557,8 +578,8 @@ class SimulationGame
 
     private void ComputePlayerTarget(GameTurnInfos infosTurn, SimulationInfos simInfos)
     {
-        Random rand = new Random();
-        List<Zombie> zombiesThatDoNotTargetPlayer = new List<Zombie>();
+        var rand = new Random();
+        var zombiesThatDoNotTargetPlayer = new List<Zombie>();
 
         // If there is some random moves, we made Nash do the moves; otherwise we set a target for Nash.
         if (simInfos.SimStartingRandomMovesNum > 0)
@@ -596,18 +617,18 @@ class SimulationAgent
 class SimulationResult
 {
     public int Points { get; set; }
-    public Tuple<int, int> Move { get; set; }
+    public int NumberOfTurn { get; set; }
 
     public SimulationResult()
     {
         Points = 0;
-        Move = new Tuple<int, int>(-1, -1);
+        NumberOfTurn = 0;
     }
 
     public SimulationResult(SimulationResult simResult)
     {
         Points = simResult.Points;
-        Move = simResult.Move;
+        NumberOfTurn = simResult.NumberOfTurn;
     }
 }
 
@@ -619,7 +640,6 @@ class SimulationInfos
     public int SimPoints { get; set; }
     public List<Tuple<int, int>> Moves { get; set; }
     public int SimStartingRandomMovesNum { get; set; }
-    public bool PerfectSimulation { get; set; }
 
     public SimulationInfos()
     {
@@ -629,7 +649,6 @@ class SimulationInfos
         SimPoints = 0;
         Moves = new List<Tuple<int, int>>();
         SimStartingRandomMovesNum = 0;
-        PerfectSimulation = false;
     }
 }
 
@@ -654,14 +673,15 @@ static class Tools
         int w;
         if (n <= 0) return 0;
         if (n == 1) return 1;
-        int u = 0;
-        int v = 1;
-        for (int i = 2; i <= n; i++)
+        var u = 0;
+        var v = 1;
+        for (var i = 2; i <= n; i++)
         {
             w = u + v;
             u = v;
             v = w;
-        };
+        }
+
         return v;
     }
 
@@ -710,7 +730,7 @@ static class DebugInfos
 
     public static void WriteSimulTurnInfos(DebugInfosForEachTurn turnInfos, int debugLevel)
     {
-        string[] strings = new string[]
+        var strings = new string[]
         {
             $"turnInfos.NumTurn [{turnInfos.NumTurn}] ",
             $"turnInfos.Humans.Count [{turnInfos.Humans.Count}] ",
@@ -786,3 +806,4 @@ class DebugInfosForEachTurn
         }
     }
 }
+
