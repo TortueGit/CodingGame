@@ -13,6 +13,7 @@ class Player
     static void Main(string[] args)
     {
         string[] inputs;
+        SimulationGame simulation = new SimulationGame();
 
         // game loop
         while (true)
@@ -49,10 +50,21 @@ class Player
             GameTurnInfos turnInfos = new GameTurnInfos(nash, humans, zombies);
 
             // For each turn, we want to simulate the maximum of game played to find the best next move possible.
-            SimulationGame simulation = new SimulationGame(turnInfos);
+            simulation.InitTurnInfos(turnInfos);
             SimulationResult simResult = simulation.Simulation();
 
-            Tools.PrintMove(simResult.Move);
+            if (!simulation.NewBest)
+                simulation.NumTurn = 0;
+
+            if (simulation.BestSimulation.Moves.Count == 0)
+                Console.Error.WriteLine("NO MOVES !!!!");
+
+            Console.Error.WriteLine($"NumTurn [{simulation.NumTurn}]");
+
+            //Tools.PrintMove(simResult.Move);
+            Tools.PrintMove(simulation.BestSimulation.Moves[simulation.NumTurn]);
+
+            simulation.NumTurn++;
 
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
@@ -83,7 +95,7 @@ class GameInfos
     public const int MAX_SIMULATIONS_RUN = int.MaxValue;
     public const float TIMEOUT_FOR_A_TURN_IN_MS = 140.0f;
     public const float ACCEPTABLE_TIME_REPONSE_FOR_METHODS = 50.0f;
-    public const int MAX_SIMULATION_RANDOM_STARTING_MOVES = -1;
+    public const int MAX_SIMULATION_RANDOM_STARTING_MOVES = 0;
     #endregion
 }
 
@@ -161,8 +173,20 @@ class Zombie
 class SimulationGame
 {
     public GameTurnInfos TurnInfos { get; set; }
+    public SimulationInfos BestSimulation { get; set; }
+    public int NumTurn { get; set; }
 
-    public SimulationGame(GameTurnInfos turnInfos)
+    public bool NewBest { get; set; }
+
+    public SimulationGame()
+    {
+        TurnInfos = null;
+        BestSimulation = new SimulationInfos();
+        NewBest = false;
+        NumTurn = 0;
+    }
+
+    public void InitTurnInfos(GameTurnInfos turnInfos)
     {
         TurnInfos = new GameTurnInfos(
             nash: turnInfos.Nash,
@@ -187,7 +211,7 @@ class SimulationGame
             );
             SimulationResult tmpResult = SimulateGame(infosTurn);
 
-            if (tmpResult.Points > simResult.Points)
+            if (tmpResult.Points >= simResult.Points)
                 simResult = new SimulationResult(tmpResult);
 
             var t1 = DateTime.UtcNow;
@@ -222,9 +246,16 @@ class SimulationGame
             simInfos.SimMovesCount++;
         }
 
-        if (simInfos.SimZombieAllDead && !simInfos.SimFailure)
+        if (simInfos.SimZombieAllDead && !simInfos.SimFailure && sr.Points > BestSimulation.SimPoints)
         {
+            Console.Error.WriteLine($"number of moves [{simInfos.Moves.Count}]");
             sr.Move = simInfos.Moves.First();
+
+            simInfos.SimPoints = sr.Points;
+            BestSimulation = simInfos;
+            NewBest = true;
+
+            Console.Error.WriteLine($"NEW BEST {sr.Points} {BestSimulation.SimPoints}");
         }
 
         return sr;
@@ -280,7 +311,7 @@ class SimulationGame
         foreach (Human human in infosTurn.Humans)
         {
             tmpDist = Tools.GetDistance(zombie.Position, human.Position);
-            if (tmpDist <= minDist)
+            if (tmpDist < minDist)
             {
                 zombie.Target = human;
                 minDist = tmpDist;
@@ -532,6 +563,7 @@ class SimulationInfos
     public int SimPoints { get; set; }
     public List<Tuple<int, int>> Moves { get; set; }
     public int SimStartingRandomMovesNum { get; set; }
+    public bool PerfectSimulation { get; set; }
 
     public SimulationInfos()
     {
@@ -541,6 +573,7 @@ class SimulationInfos
         SimPoints = 0;
         Moves = new List<Tuple<int, int>>();
         SimStartingRandomMovesNum = 0;
+        PerfectSimulation = false;
     }
 }
 
