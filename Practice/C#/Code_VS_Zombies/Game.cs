@@ -15,6 +15,8 @@ class Player
         string[] inputs;
         SimulationGame simulation = new SimulationGame();
 
+        GameInfosForDebug gameInfosDebug = new GameInfosForDebug();
+
         // game loop
         while (true)
         {
@@ -51,15 +53,24 @@ class Player
 
             // For each turn, we want to simulate the maximum of game played to find the best next move possible.
             simulation.InitTurnInfos(turnInfos);
-            SimulationResult simResult = simulation.Simulation();
+            SimulationResult simResult = simulation.Simulation(gameInfosDebug);
 
-            if (!simulation.NewBest)
+            if (simulation.NewBest)
+            {
                 simulation.NumTurn = 0;
+                simulation.NewBest = false;
+            }
 
             if (simulation.BestSimulation.Moves.Count == 0)
                 Console.Error.WriteLine("NO MOVES !!!!");
 
-            Console.Error.WriteLine($"NumTurn [{simulation.NumTurn}]");
+            Console.Error.WriteLine($"NumTurn [{simulation.NumTurn}] && {gameInfosDebug.DebugInfosForTurn.Count}");
+
+            //foreach (DebugInfosForEachTurn inf in gameInfosDebug.DebugInfosForTurn)
+            //{
+            //    DebugInfos.WriteSimulTurnInfos(inf, DebugInfos.INFOS);
+            //}
+            DebugInfos.WriteSimulTurnInfos(gameInfosDebug.DebugInfosForTurn[simulation.NumTurn], DebugInfos.INFOS);
 
             //Tools.PrintMove(simResult.Move);
             Tools.PrintMove(simulation.BestSimulation.Moves[simulation.NumTurn]);
@@ -108,10 +119,34 @@ class GameTurnInfos
 
     public GameTurnInfos(PlayerNash nash, List<Human> humans, List<Zombie> zombies)
     {
-        Nash = nash;
-        Humans = new List<Human>(humans);
-        Zombies = new List<Zombie>(zombies);
+        Nash = new PlayerNash(nash);
+        SetHumansOrZombies(humans);
+        //Humans = new List<Human>(humans);
+        SetHumansOrZombies(zombies);
+        //Zombies = new List<Zombie>(zombies);
         NashTargetDiedThisTurn = false;
+    }
+
+    public void SetHumansOrZombies<T>(List<T> objects)
+    {
+        bool isHumans = false;
+        if (typeof(T) == typeof(Human))
+        {
+            isHumans = true;
+            Humans = new List<Human>();
+        }
+        else if (typeof(T) == typeof(Zombie))
+        {
+            Zombies = new List<Zombie>();
+        }
+
+        foreach (T obj in objects)
+        {
+            if (isHumans)
+                Humans.Add(new Human((obj as Human)));
+            else
+                Zombies.Add(new Zombie((obj as Zombie)));
+        }
     }
 }
 
@@ -134,6 +169,14 @@ class PlayerNash
         Arrived = false;
         Target = null;
     }
+
+    public PlayerNash(PlayerNash nash)
+    {
+        Position = nash.Position;
+        NextPosition = nash.NextPosition;
+        Arrived = nash.Arrived;
+        Target = nash.Target;
+    }
 }
 
 class Human
@@ -145,6 +188,12 @@ class Human
     {
         Id = id;
         Position = pos;
+    }
+
+    public Human(Human human)
+    {
+        Id = human.Id;
+        Position = human.Position;
     }
 }
 
@@ -167,6 +216,15 @@ class Zombie
         NextPosition = nextPos;
         Arrived = false;
         Target = null;
+    }
+
+    public Zombie(Zombie zombie)
+    {
+        Id = zombie.Id;
+        Position = zombie.Position;
+        NextPosition = zombie.NextPosition;
+        Arrived = zombie.Arrived;
+        Target = zombie.Target;
     }
 }
 
@@ -195,10 +253,12 @@ class SimulationGame
         );
     }
 
-    public SimulationResult Simulation()
+    public SimulationResult Simulation(GameInfosForDebug gameInfosDebug)
     {
         SimulationResult simResult = new SimulationResult();
         SimulationAgent agent = new SimulationAgent();
+
+        Console.Error.WriteLine($"How many zombie : [{TurnInfos.Zombies.Count}]");
 
         while (agent.TotalMs < GameInfos.TIMEOUT_FOR_A_TURN_IN_MS && agent.SimRun <= GameInfos.MAX_SIMULATIONS_RUN)
         {
@@ -209,7 +269,8 @@ class SimulationGame
                 humans: TurnInfos.Humans,
                 zombies: TurnInfos.Zombies
             );
-            SimulationResult tmpResult = SimulateGame(infosTurn);
+
+            SimulationResult tmpResult = SimulateGame(infosTurn, gameInfosDebug);
 
             if (tmpResult.Points >= simResult.Points)
                 simResult = new SimulationResult(tmpResult);
@@ -218,6 +279,9 @@ class SimulationGame
             agent.TotalMs += Tools.TimeDifferenceInMillisecond(t0, t1);
             agent.SimRun++;
         }
+
+        if (NewBest)
+            Console.Error.WriteLine($"number of turn in debug {gameInfosDebug.DebugInfosForTurn.Count}");
 
         DebugInfos.WriteDebugMessage(
                 functionName: "Simulation end",
@@ -228,12 +292,14 @@ class SimulationGame
         return simResult;
     }
 
-    private SimulationResult SimulateGame(GameTurnInfos infosTurn)
+    private SimulationResult SimulateGame(GameTurnInfos infosTurn, GameInfosForDebug gameInfosDebug)
     {
         Random rand = new Random();
         SimulationResult sr = new SimulationResult();
         SimulationInfos simInfos = new SimulationInfos();
         List<Tuple<int, int>> moves = new List<Tuple<int, int>>();
+        GameInfosForDebug gameDebug = new GameInfosForDebug();
+        DebugInfosForEachTurn turnInfosDebug = new DebugInfosForEachTurn();
 
         simInfos.SimStartingRandomMovesNum = rand.Next(GameInfos.MAX_SIMULATION_RANDOM_STARTING_MOVES + 1);
 
@@ -243,17 +309,29 @@ class SimulationGame
         {
             // Simulate a turn of the game.
             simInfos.Moves.Add(Turn(infosTurn, sr, simInfos));
+
+            turnInfosDebug.Nash = infosTurn.Nash;
+            //turnInfosDebug.Humans = new List<Human>(infosTurn.Humans);
+            turnInfosDebug.SetHumansOrZombies(infosTurn.Humans);
+            //turnInfosDebug.Zombies = new List<Zombie>(infosTurn.Zombies);
+            turnInfosDebug.SetHumansOrZombies(infosTurn.Zombies);
+            turnInfosDebug.Points = sr.Points;
+            turnInfosDebug.Move = simInfos.Moves.Last();
+            turnInfosDebug.NumTurn = simInfos.SimMovesCount;
+            gameDebug.DebugInfosForTurn.Add(new DebugInfosForEachTurn(turnInfosDebug));
+
             simInfos.SimMovesCount++;
         }
 
         if (simInfos.SimZombieAllDead && !simInfos.SimFailure && sr.Points > BestSimulation.SimPoints)
         {
-            Console.Error.WriteLine($"number of moves [{simInfos.Moves.Count}]");
             sr.Move = simInfos.Moves.First();
 
             simInfos.SimPoints = sr.Points;
             BestSimulation = simInfos;
             NewBest = true;
+
+            gameInfosDebug.SetDebugInfosForTurn(gameDebug.DebugInfosForTurn);
 
             Console.Error.WriteLine($"NEW BEST {sr.Points} {BestSimulation.SimPoints}");
         }
@@ -658,6 +736,85 @@ static class DebugInfos
             }
 
             Console.Error.WriteLine(sb);
+        }
+    }
+
+    public static void WriteSimulTurnInfos(DebugInfosForEachTurn turnInfos, int debugLevel)
+    {
+        string[] strings = new string[]
+        {
+            $"turnInfos.NumTurn [{turnInfos.NumTurn}] ",
+            $"turnInfos.Humans.Count [{turnInfos.Humans.Count}] ",
+            $"turnInfos.Zombies.Count [{turnInfos.Zombies.Count}] ",
+            $"turnInfos.Points [{turnInfos.Points}] ",
+            $"turnInfos.Move [{turnInfos.Move}] "
+        };
+
+        WriteDebugMessage("WriteSimulTurnInfos", strings, debugLevel);
+    }
+}
+
+class GameInfosForDebug
+{
+    public List<DebugInfosForEachTurn> DebugInfosForTurn { get; set; }
+
+    public GameInfosForDebug()
+    {
+        DebugInfosForTurn = new List<DebugInfosForEachTurn>();
+    }
+
+    public void SetDebugInfosForTurn(List<DebugInfosForEachTurn> debugInfos)
+    {
+        DebugInfosForTurn = new List<DebugInfosForEachTurn>();
+        foreach (DebugInfosForEachTurn infosTurn in debugInfos)
+            DebugInfosForTurn.Add(new DebugInfosForEachTurn(infosTurn));
+    }
+}
+
+class DebugInfosForEachTurn
+{
+    public PlayerNash Nash { get; set; }
+    public List<Human> Humans { get; set; }
+    public List<Zombie> Zombies { get; set; }
+    public int Points { get; set; }
+    //public List<Tuple<int, int>> Moves { get; set; }
+    public Tuple<int, int> Move { get; set; }
+    public int NumTurn { get; set; }
+
+    public DebugInfosForEachTurn()
+    {
+        Nash = null;
+        Humans = new List<Human>();
+        Zombies = new List<Zombie>();
+        Points = 0;
+        Move = new Tuple<int, int>(-1, -1);
+        NumTurn = 0;
+    }
+
+    public DebugInfosForEachTurn(DebugInfosForEachTurn debugInfosForEachTurn)
+    {
+        Nash = debugInfosForEachTurn.Nash;
+        Humans = debugInfosForEachTurn.Humans;
+        Zombies = debugInfosForEachTurn.Zombies;
+        Points = debugInfosForEachTurn.Points;
+        Move = debugInfosForEachTurn.Move;
+        NumTurn = debugInfosForEachTurn.NumTurn;
+    }
+
+    public void SetHumansOrZombies<T>(List<T> objects)
+    {
+        if (typeof(T) == typeof(Human))
+            Humans = new List<Human>();
+        if (typeof(T) == typeof(Zombie))
+            Zombies = new List<Zombie>();
+
+        foreach (T obj in objects)
+        {
+            if (obj is Human)
+                Humans.Add(new Human((obj as Human)));
+
+            if (obj is Zombie)
+                Zombies.Add(new Zombie((obj as Zombie)));
         }
     }
 }
