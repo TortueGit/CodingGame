@@ -301,7 +301,6 @@ class SimulationGame
         var moves = new List<Tuple<int, int>>();
         var gameDebug = new GameInfosForDebug();
         var turnInfosDebug = new DebugInfosForEachTurn();
-        var scoreForThisTurn = 0;
 
         simInfos.SimStartingRandomMovesNum = rand.Next(GameInfos.MAX_SIMULATION_RANDOM_STARTING_MOVES + 1);
 
@@ -538,7 +537,6 @@ class SimulationGame
     private int ZombiesInRangeOfPlayer(List<Zombie> zombiesInRange, GameTurnInfos infosTurn)
     {
         var len = 0;
-        float dx, dy;
 
         foreach (Zombie zombie in infosTurn.Zombies)
         {
