@@ -48,19 +48,24 @@ class Player
                 string actionType = inputs[1]; // in the first league: BREW; later: CAST, OPPONENT_CAST, LEARN, BREW
                 
                 int delta0 = int.Parse(inputs[2]); // tier-0 ingredient change                
-                if (Global.MaxIngredient0 < delta0)
-                    Global.MaxIngredient0 = delta0;
                 int delta1 = int.Parse(inputs[3]); // tier-1 ingredient change
-                if (Global.MaxIngredient1 < delta1)
-                    Global.MaxIngredient1 = delta1;
                 int delta2 = int.Parse(inputs[4]); // tier-2 ingredient change
-                if (Global.MaxIngredient2 < delta2)
-                    Global.MaxIngredient2 = delta2;
                 int delta3 = int.Parse(inputs[5]); // tier-3 ingredient change
-                if (Global.MaxIngredient3 < delta3)
-                    Global.MaxIngredient3 = delta3;
 
                 int price = int.Parse(inputs[6]); // the price in rupees if this is a potion
+
+                if (price > 10)
+                {
+                    if (Global.MaxIngredient0 < delta0)
+                        Global.MaxIngredient0 = delta0;
+                    if (Global.MaxIngredient1 < delta1)
+                        Global.MaxIngredient1 = delta1;
+                    if (Global.MaxIngredient2 < delta2)
+                        Global.MaxIngredient2 = delta2;
+                    if (Global.MaxIngredient3 < delta3)
+                        Global.MaxIngredient3 = delta3;
+                }
+
                 int tomeIndex = int.Parse(inputs[7]); // in the first two leagues: always 0; later: the index in the tome if this is a tome spell, equal to the read-ahead tax
                 int taxCount = int.Parse(inputs[8]); // in the first two leagues: always 0; later: the amount of taxed tier-0 ingredients you gain from learning this spell
                 bool castable = inputs[9] != "0"; // in the first league: always 0; later: 1 if this is a castable player spell
@@ -91,6 +96,7 @@ class Player
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
 
+            Console.Error.WriteLine($"{game.MyInventory.NbIngredients}");
             string action = game.WhatToDo();
 
             Console.WriteLine(action);
@@ -134,11 +140,10 @@ class MyGame
 
     internal string WhatToDo()
     {
-        ChooseBestPotionsToBrew(_gameOrders.Where(x => x.ActionType.Equals(Global.BREW)).ToList());
-        if (_bestPotionsToBrew != null)
+        int potionToBrewId = ChooseBestPotionsToBrew(_gameOrders.Where(x => x.ActionType.Equals(Global.BREW)).ToList());
+        if (potionToBrewId != -1)
         {
-            Console.Error.WriteLine($"_bestPotionsToBrew.Count {_bestPotionsToBrew.Count}");
-            return $"{Global.BREW} {_bestPotionsToBrew.First()}";
+            return $"{Global.BREW} {potionToBrewId}";
         }
 
         int spellToLearnId = IsItSpellToLearn(_gameOrders.Where(x => x.ActionType.Equals(Global.LEARN)).ToList());
@@ -154,7 +159,7 @@ class MyGame
         }
         
         spellToLearnId = IsItSpellToLearn(_gameOrders.Where(x => x.ActionType.Equals(Global.LEARN)).ToList());
-        if (spellToLearnId != -1)
+        if (spellToLearnId != -1 && _gameOrders.Where(x => x.ActionType.Equals(Global.SPELL)).Count(x => x.Castable == false) < 5)
         {
             return $"{Global.LEARN} {spellToLearnId}";
         }
@@ -167,8 +172,11 @@ class MyGame
         Order spellToLearn = null;
         foreach(Order spell in spellBooks)
         {
+            if (spell.NbIngredientsCost > spell.NbIngredientsAdd)
+                continue;
+
             if (spellToLearn == null ||
-                spellToLearn.Cost >= spell.Cost &&
+                spellToLearn.NbIngredientsCost >= spell.NbIngredientsCost &&
                 (spellToLearn.NbIngredientTypesAdd < spell.NbIngredientTypesAdd ||
                 (spellToLearn.NbIngredientTypesAdd == spell.NbIngredientTypesAdd && spellToLearn.NbIngredientsAdd < spell.NbIngredientsAdd))
             )
@@ -179,54 +187,32 @@ class MyGame
         }
 
         if (spellToLearn != null)
+        {
+            Console.Error.WriteLine($"Spell to Learn cost[{spellToLearn.NbIngredientsCost}] ingredientAdd[{spellToLearn.NbIngredientsAdd}]]");
             return spellToLearn.Id;
+        }
 
         return -1;
     }
 
-    private void ChooseBestPotionsToBrew(List<Order> potions)
+    private int ChooseBestPotionsToBrew(List<Order> potions)
     {
-        for (int i = 0; i < potions.Count(); i++)
+        Order potionToBrew = null;
+        foreach (Order potion in potions)
         {
             int turnPrice = 0;
-            Order potion = potions[i];
 
             if (CanIBrewPotions(potion.Id))
             {
-                SimulBrewery(potion);
-                
-                int indexNextPotionToBrew = i + 1;
-                while (indexNextPotionToBrew <= potions.Count)
-                {
-                    _simulPotionsToBrew = new List<int>();
-                    _simulPotionsToBrew.Add(potion.Id);
-                    Console.Error.WriteLine($"!!!!!!!!!!!!! _simulPotionsToBrew.Count {_simulPotionsToBrew.Count} !!!!!!!!!!!");
-                    turnPrice = potion.Price;
-                    // I can brew this potion, but can I brew others with it ?
-                    for (int j = indexNextPotionToBrew; j < potions.Count; j++)
-                    {
-                        Order pot = potions[j];
-                        if (CanIBrewPotions(pot.Id))
-                        {
-                            SimulBrewery(pot);
-                            turnPrice += pot.Price;
-                            _simulPotionsToBrew.Add(pot.Id);
-                        }
-                    }
-
-                    Console.Error.WriteLine($"simulScore = {_simulScore} |  turnPrice = {turnPrice}");
-                    if (_simulScore < turnPrice)
-                    {
-                        _simulScore = turnPrice;
-                        Console.Error.WriteLine($"_simulPotionsToBrew.Count {_simulPotionsToBrew.Count}");
-                        _bestPotionsToBrew = new List<int>(_simulPotionsToBrew);
-                        Console.Error.WriteLine($"_bestPotionsToBrew.Count {_bestPotionsToBrew.Count}");
-                    }
-
-                    indexNextPotionToBrew++;
-                }
+                if (potion.Price > 10 && (potionToBrew == null || potionToBrew.Price < potion.Price))
+                    potionToBrew = potion;
             }
         }
+
+        if (potionToBrew != null)
+            return potionToBrew.Id;
+
+        return -1;
     }
 
     private int WhatSpellToDo(List<Order> spells)
@@ -259,8 +245,6 @@ class MyGame
             _simulInventory.Ingredient2 + potion.Ingredient2 >= 0 &&
             _simulInventory.Ingredient3 + potion.Ingredient3 >= 0)
         {
-            DebugLogs.WriteInventoryIngredients(_simulInventory);
-            DebugLogs.WriteOrderIngredients(potion);
             return true;
         }
 
@@ -276,10 +260,11 @@ class MyGame
             _myInventory.Ingredient3 + spell.Ingredient3 >= 0)
         {
             // I can cast this spell, but does I need it ?
-            if (spell.Ingredient0 > 0 && (Global.MaxIngredient0 - _myInventory.Ingredient0 >= 0) && _myInventory.NbIngredients < 8 ||
+            if (spell.NbIngredientsAdd <= (10 - _myInventory.NbIngredients) &&
+                (spell.Ingredient0 > 0 && (Global.MaxIngredient0 - _myInventory.Ingredient0 >= 0) ||
                 spell.Ingredient1 > 0 && (Global.MaxIngredient1 - _myInventory.Ingredient1 >= 0) ||
                 spell.Ingredient2 > 0 && (Global.MaxIngredient2 - _myInventory.Ingredient2 >= 0) ||
-                spell.Ingredient3 > 0 && (Global.MaxIngredient3 - _myInventory.Ingredient3 >= 0)
+                spell.Ingredient3 > 0 && (Global.MaxIngredient3 - _myInventory.Ingredient3 >= 0))
             )
                 return true;
         }
@@ -322,7 +307,6 @@ class Order
     int _price;
     int _tomeIndex;
     int _taxCount;
-    int _cost;
     int _nbIngredientsAdd;
     int _nbIngredientsCost;
     int _nbIngredientTypesAdd;
@@ -356,7 +340,6 @@ class Order
     public int Price => _price;
     public int TomeIndex => _tomeIndex;
     public int TaxCount => _taxCount;
-    public int Cost => _cost;
     public int NbIngredientsAdd => _nbIngredientsAdd;
     public int NbIngredientsCost => _nbIngredientsCost;
     public int NbIngredientTypesAdd => _nbIngredientTypesAdd;
