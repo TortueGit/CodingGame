@@ -1,0 +1,32 @@
+using System;
+
+namespace CodingGame.Contest.FallChallenge.src.game.spell
+{
+    public abstract class Spell
+    {
+        static int INSTANCE_COUNT = 0;
+
+        Recipe _recipe;
+        int _id = INSTANCE_COUNT++;
+
+        public int Id => _id;
+
+        public int Score => 0;
+
+        public int Stock => -1;
+
+        public bool IsActive => false;
+
+        public bool IsOwner(PlayerGame player) => false;
+
+        public int[] GetDelta => _recipe.Delta;
+
+        public Recipe Recipe { get => _recipe; set => _recipe = value; }
+
+        public abstract bool IsRepeatable();
+        
+        public override String ToString() {
+            return Convert.ToString(_id);
+        }
+    }
+}
