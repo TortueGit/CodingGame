@@ -24,27 +24,27 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
         internal Witch PreviousState { get => _previousState; set => _previousState = value; }
         internal Inventory MyInventory { get => _myInventory; set => _myInventory = value; }
         internal List<Spell> MySpells { get => _mySpells; set => _mySpells = value; }
-        internal Potion PotionToBrew 
-        { 
-            get => _potionToBrew; 
+        internal Potion PotionToBrew
+        {
+            get => _potionToBrew;
             set
             {
-                 _potionToBrew = value;                 
+                _potionToBrew = value;
             }
         }
 
-        public bool CanBrewPotion 
-        { 
+        public bool CanBrewPotion
+        {
             get => _canBrewPotion;
             set
             {
                 if (PotionToBrew != null)
                 {
                     if (MyInventory.Ingredients.Values.Count >= PotionToBrew.Recipe.NbIngredientsRequired)
-                    {                        
+                    {
                         _canBrewPotion = MyInventory.Equals(PotionToBrew.Recipe.Ingredients);
                     }
-                }                
+                }
                 _canBrewPotion = false;
             }
         }

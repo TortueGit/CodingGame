@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace CodingGame.Contest.FallChallenge.GameWorkspace
@@ -7,6 +8,12 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
     {
         internal static void WriteOrderIngredients(Order o)
         {
+            if (o == null)
+            {
+                Console.Error.WriteLine("!!! Null Order !!!");
+                return;
+            }
+
             StringBuilder sb = new StringBuilder($"Order id[{o.Id}] actionType[{o.ActionType}] \t");
             sb.Append($"Ingredient0[{o.Recipe.GetIngredient0.Value}] \t");
             sb.Append($"Ingredient1[{o.Recipe.GetIngredient1.Value}] \t");
@@ -37,5 +44,18 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
 
             Console.Error.WriteLine(sb);
         }
+
+        internal static void WriteMissingIngredients(Dictionary<Ingredient, int> missingIngredients)
+        {
+            StringBuilder sb = new StringBuilder($"Missing ingredients : \t");
+
+            foreach (KeyValuePair<Ingredient, int> ingredient in missingIngredients)
+            {
+                sb.Append($"Ingredient{ingredient.Key.Type} {ingredient.Value}\t");
+            }
+
+            Console.Error.WriteLine(sb);
+        }
     }
+
 }

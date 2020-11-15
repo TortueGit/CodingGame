@@ -4,7 +4,7 @@ using System.Linq;
 namespace CodingGame.Contest.FallChallenge.GameWorkspace
 {
     internal class GameInfos
-    {        
+    {
         Witch _myWitch;
         Witch _opponentWitch;
 
@@ -39,7 +39,7 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
         internal List<Potion> Potions { get => _potions; set => _potions = value; }
         internal List<Spell> BookSpells { get => _bookSpells; set => _bookSpells = value; }
         internal Potion GetMaxPricePotion => _potions.OrderByDescending(x => x.Price).OrderBy(x => x.NbIngredientsRequired).FirstOrDefault();
-        
+
         internal void AddOrder(List<Order> allOrders)
         {
             _potions.RemoveAll(x => !allOrders.Select(x => x.Id).Contains(x.Id));
@@ -51,7 +51,7 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
                 MyWitch.PotionToBrew = null;
             }
 
-            foreach(Order order in allOrders)
+            foreach (Order order in allOrders)
             {
                 switch (order.ActionType)
                 {
@@ -81,6 +81,17 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
             _maxIngredient1 = 0;
             _maxIngredient2 = 0;
             _maxIngredient3 = 0;
+        }
+
+        internal void NewTurn()
+        {
+            _myWitch.Reset();
+            _opponentWitch.Reset();
+
+            _potions = new List<Potion>();
+            _bookSpells = new List<Spell>();
+
+            _isFirstTurn = false;
         }
     }
 }

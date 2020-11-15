@@ -17,7 +17,7 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
 
     class Ingredient0 : Ingredient
     {
-        internal Ingredient0() 
+        internal Ingredient0()
             : base(0, 1)
         {
         }

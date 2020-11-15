@@ -7,10 +7,12 @@ using System.Collections.Generic;
 
 static class Global
 {
-    public const string SPELL = "CAST";
-    public const string OPPONENT_CAST = "OPPONENT_CAST";
-    public const string LEARN = "LEARN";
-    public const string BREW = "BREW";
+    internal const string SPELL = "CAST";
+    internal const string OPPONENT_CAST = "OPPONENT_CAST";
+    internal const string LEARN = "LEARN";
+    internal const string BREW = "BREW";
+    internal const string WAIT = "WAIT";
+    internal const string REST = "REST";
 }
 
 /**
@@ -22,30 +24,22 @@ class Player
     static void Main(string[] args)
     {
         string[] inputs;
-        MyGame game = new MyGame();
+        GameInfos myGame = new GameInfos();
 
         // game loop
         while (true)
         {
             #region INIT_VALUES
-            game.ResetMaxIngredient();
+            myGame.ResetMaxIngredient();
 
             List<Order> allOrders = new List<Order>();
             int actionCount = int.Parse(Console.ReadLine()); // the number of spells and recipes in play
             for (int i = 0; i < actionCount; i++)
             {
-                int bonus = 0;
-                if (i == 0 && game.IsFirstTurn)
-                    bonus = 3;
-                if (i == 1 && game.IsFirstTurn)
-                    bonus = 2;
-                if (i == 2 && game.IsFirstTurn)
-                    bonus = 1;
-
                 inputs = Console.ReadLine().Split(' ');
                 int actionId = int.Parse(inputs[0]); // the unique ID of this spell or recipe
                 string actionType = inputs[1]; // in the first league: BREW; later: CAST, OPPONENT_CAST, LEARN, BREW
-                
+
                 int delta0 = int.Parse(inputs[2]); // tier-0 ingredient change                
                 int delta1 = int.Parse(inputs[3]); // tier-1 ingredient change
                 int delta2 = int.Parse(inputs[4]); // tier-2 ingredient change
@@ -55,16 +49,16 @@ class Player
 
                 if (actionType.Equals(Global.BREW))
                 {
-                    if (game.MaxIngredient0 < Math.Abs(delta0))
-                        game.MaxIngredient0 = Math.Abs(delta0);
-                    if (game.MaxIngredient1 < Math.Abs(delta1))
-                        game.MaxIngredient1 = Math.Abs(delta1);
-                    if (game.MaxIngredient2 < Math.Abs(delta2))
-                        game.MaxIngredient2 = Math.Abs(delta2);
-                    if (game.MaxIngredient3 < Math.Abs(delta3))
-                        game.MaxIngredient3 = Math.Abs(delta3);
+                    if (myGame.MaxIngredient0 < Math.Abs(delta0))
+                        myGame.MaxIngredient0 = Math.Abs(delta0);
+                    if (myGame.MaxIngredient1 < Math.Abs(delta1))
+                        myGame.MaxIngredient1 = Math.Abs(delta1);
+                    if (myGame.MaxIngredient2 < Math.Abs(delta2))
+                        myGame.MaxIngredient2 = Math.Abs(delta2);
+                    if (myGame.MaxIngredient3 < Math.Abs(delta3))
+                        myGame.MaxIngredient3 = Math.Abs(delta3);
 
-                    DebugLogs.WriteMaxIngredientsNeeded(game);
+                    DebugLogs.WriteMaxIngredientsNeeded(myGame);
                 }
 
                 int tomeIndex = int.Parse(inputs[7]); // in the first two leagues: always 0; later: the index in the tome if this is a tome spell, equal to the read-ahead tax
@@ -72,89 +66,232 @@ class Player
                 bool castable = inputs[9] != "0"; // in the first league: always 0; later: 1 if this is a castable player spell
                 bool repeatable = inputs[10] != "0"; // for the first two leagues: always 0; later: 1 if this is a repeatable player spell
 
-                Order o = new Order(actionId, actionType, delta0, delta1, delta2, delta3, price + bonus, tomeIndex, taxCount, castable, repeatable);
-                
-                allOrders.Add(o);
+                Order o = null;
+                switch (actionType)
+                {
+                    case Global.BREW:
+                        o = new Potion(actionId, actionType, delta0, delta1, delta2, delta3, price);
+                        break;
+
+                    case Global.OPPONENT_CAST:
+                    case Global.SPELL:
+                    case Global.LEARN:
+                        o = new Spell(actionId, actionType, delta0, delta1, delta2, delta3, tomeIndex, taxCount, castable, repeatable);
+                        break;
+                }
+                if (o != null)
+                    allOrders.Add(o);
             }
-            game.AddOrder(allOrders);
+            myGame.AddOrder(allOrders);
 
-            game.MyWitch.MyInventory = new Inventory();
-            inputs = Console.ReadLine().Split(' ');
-            game.MyWitch.MyInventory.Ingredient0 = int.Parse(inputs[0]); // tier-0 ingredients in inventory                
-            game.MyWitch.MyInventory.Ingredient1 = int.Parse(inputs[1]);
-            game.MyWitch.MyInventory.Ingredient2 = int.Parse(inputs[2]);
-            game.MyWitch.MyInventory.Ingredient3 = int.Parse(inputs[3]);
-            game.MyWitch.MyInventory.Score = int.Parse(inputs[4]); // amount of rupees
+            int[] deltas = Array.ConvertAll<string, int>(Console.ReadLine().Split(' '), int.Parse);
+            myGame.MyWitch.MyInventory = new Inventory(deltas);
 
-            game.OpponentWitch.MyInventory = new Inventory();
-            inputs = Console.ReadLine().Split(' ');
-            game.OpponentWitch.MyInventory.Ingredient0 = int.Parse(inputs[0]); // tier-0 ingredients in inventory                
-            game.OpponentWitch.MyInventory.Ingredient1 = int.Parse(inputs[1]);
-            game.OpponentWitch.MyInventory.Ingredient2 = int.Parse(inputs[2]);
-            game.OpponentWitch.MyInventory.Ingredient3 = int.Parse(inputs[3]);
-            game.OpponentWitch.MyInventory.Score = int.Parse(inputs[4]); // amount of rupees
+            deltas = Array.ConvertAll<string, int>(Console.ReadLine().Split(' '), int.Parse);
+            myGame.OpponentWitch.MyInventory = new Inventory(deltas);
             #endregion
 
-
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
-
-            string action = game.WhatToDo();
+            string action = Play(myGame);
 
             Console.WriteLine(action);
 
-            game.NewTurn();
+            myGame.NewTurn();
         }
+    }
+
+
+    /**
+    *
+    *   Pense bête:
+    *   - Calculer nb de tour pour obtenir ingredients manquant.
+    *   - Regarder si autre potion dans la liste peut être brew maintenant.
+    *   - Vérifier que brew une potion moins couteuse est avantageux par rapport au nombre de tour restant pour avoir les ingredients manquants.
+    *
+    **/
+    static string Play(GameInfos game)
+    {
+        Dictionary<Ingredient, int> missingIngredients = new Dictionary<Ingredient, int>();
+        if (game.MyWitch.CanBrewPotion || game.MyWitch.PotionToBrew == null)
+        {
+            if (game.MyWitch.PotionToBrew == null)
+            {
+                game.MyWitch.PotionToBrew = game.GetMaxPricePotion;
+                if (game.MyWitch.CanBrewPotion)
+                    return $"{Global.BREW} {game.MyWitch.PotionToBrew.Id}";
+                else
+                    missingIngredients = game.MyWitch.MyInventory.GetMissingIngredients(game.MyWitch.PotionToBrew.Recipe);
+            }
+            else
+                return $"{Global.BREW} {game.MyWitch.PotionToBrew.Id}";
+        }
+
+        // No potion to BREW... What should I do?
+
+        // Is it free spell available in the book spell ?
+        var freeSpellsToLearn = game.BookSpells.Where(x => x.Recipe.NbIngredientsRequired == 0);
+        if (freeSpellsToLearn.Count() > 0)
+        {
+            Spell spellToLearn = GetBestFreeSpellsToLearn(freeSpellsToLearn);
+            if (spellToLearn != null)
+            {
+                var tmpFreeSpells = new List<Spell>(freeSpellsToLearn);
+
+                int costToLearn = spellToLearn.CostToLearn(game.MyWitch.MyInventory);
+                while (freeSpellsToLearn.Count() > 0 && costToLearn > 0 && spellToLearn != null)
+                {
+                    tmpFreeSpells.Remove(spellToLearn);
+                    spellToLearn = tmpFreeSpells.FirstOrDefault();
+                    if (spellToLearn != null)
+                        costToLearn = spellToLearn.CostToLearn(game.MyWitch.MyInventory);
+                }
+
+                if (costToLearn <= 0 && spellToLearn != null)
+                    return $"{Global.LEARN} {spellToLearn.Id}";
+                else
+                {
+                    spellToLearn = GetBestFreeSpellsToLearn(freeSpellsToLearn);
+                    costToLearn = spellToLearn.CostToLearn(game.MyWitch.MyInventory);
+                    if (missingIngredients.ContainsKey(game.MyWitch.MyInventory.GetIngredient0.Key))
+                        missingIngredients[game.MyWitch.MyInventory.GetIngredient0.Key] += costToLearn;
+                    else
+                        missingIngredients.Add(game.MyWitch.MyInventory.GetIngredient0.Key, costToLearn);
+                }
+            }
+        }
+
+        // Do I need some ingredient0?
+        if (missingIngredients.Where(x => x.Key.Type == 0).Count() > 0)
+        {
+            Spell spell = null;
+            if (game.MyWitch.MySpells.Where(x => x.Recipe.GetIngredient0.Value > 0)
+                                        .Count(x => x.Castable && x.CanCast(game.MyWitch.MyInventory)) > 0)
+            {
+                spell = game.MyWitch.MySpells.Where(x => x.Recipe.GetIngredient0.Value > 0 && x.Castable && x.CanCast(game.MyWitch.MyInventory))
+                                                .FirstOrDefault();
+                if (spell != null)
+                    return $"{Global.SPELL} {spell.Id}";
+            }
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (missingIngredients.Any(x => x.Key.Type == i))
+            {
+                var spellsToCast = game.MyWitch.MySpells.Where(x => x.Recipe.Ingredients.Any(x => x.Key.Type == i && x.Value > 0))
+                                        .OrderByDescending(x => x.Recipe.Ingredients.Single(x => x.Key.Type == i).Value);
+                var spellsToLearn = game.BookSpells.Where(x => x.Recipe.Ingredients.Any(x => x.Key.Type == i && x.Value > 0))
+                                        .OrderByDescending(x => x.Recipe.Ingredients.Single(x => x.Key.Type == i).Value);
+
+                if (spellsToCast.Count() > 0 || spellsToLearn.Count() > 0)
+                {
+                    if (spellsToCast.Where(x => x.CanCast(game.MyWitch.MyInventory) && x.Castable).Count() > 0)
+                    {
+                        Spell spell = spellsToCast.Where(x => x.CanCast(game.MyWitch.MyInventory) && x.Castable).FirstOrDefault();
+                        if (spell != null)
+                            return $"{Global.SPELL} {spell.Id}";
+                    }
+                    else
+                    {
+                        Spell spell = spellsToLearn.Where(x => x.CostToLearn(game.MyWitch.MyInventory) <= 0).FirstOrDefault();
+                        if (spell != null)
+                            return $"{Global.LEARN} {spell.Id}";
+                    }
+                }
+            }
+        }
+
+        if (game.MyWitch.MySpells.Any(x => !x.Castable))
+            return $"{Global.REST}";
+
+        var stl = game.BookSpells.Where(x => x.CostToLearn(game.MyWitch.MyInventory) <= 0);
+        if (stl.Count() > 0)
+            return $"{Global.SPELL} {stl.First().Id}";
+
+        return Global.WAIT;
+    }
+
+    static Spell GetBestFreeSpellsToLearn(IEnumerable<Spell> spells)
+    {
+        return spells.OrderByDescending(x => x.NbIngredientTypesAdd)
+                    .OrderByDescending(x => x.NbIngredientsAdd)
+                    .OrderBy(x => x.NbIngredientsRequired)
+                    .OrderBy(x => x.TomeIndex).FirstOrDefault();
     }
 }
 
-class MyGame
+internal class GameInfos
 {
     Witch _myWitch;
     Witch _opponentWitch;
 
-    List<Order> _gamePotions;
-    List<Order> _gameSpells;
+    List<Potion> _potions;
+    List<Spell> _bookSpells;
 
     int _maxIngredient0;
     int _maxIngredient1;
     int _maxIngredient2;
     int _maxIngredient3;
+
     bool _isFirstTurn;
 
-    public MyGame()
+    internal GameInfos()
     {
         _myWitch = new Witch();
         _opponentWitch = new Witch();
 
-        _gamePotions = new List<Order>();
-        _gameSpells = new List<Order>();
+        _potions = new List<Potion>();
+        _bookSpells = new List<Spell>();
 
         _isFirstTurn = true;
     }
 
     internal Witch MyWitch { get => _myWitch; set => _myWitch = value; }
     internal Witch OpponentWitch { get => _opponentWitch; set => _opponentWitch = value; }
-    internal List<Order> GamePotions { get => _gamePotions; set => _gamePotions = value; }
-    internal List<Order> GameSpells { get => _gameSpells; set => _gameSpells = value; }
     internal int MaxIngredient0 { get => _maxIngredient0; set => _maxIngredient0 = value; }
     internal int MaxIngredient1 { get => _maxIngredient1; set => _maxIngredient1 = value; }
     internal int MaxIngredient2 { get => _maxIngredient2; set => _maxIngredient2 = value; }
     internal int MaxIngredient3 { get => _maxIngredient3; set => _maxIngredient3 = value; }
-    internal bool IsFirstTurn => _isFirstTurn;
+    internal bool IsFirstTurn { get => _isFirstTurn; set => _isFirstTurn = value; }
+    internal List<Potion> Potions { get => _potions; set => _potions = value; }
+    internal List<Spell> BookSpells { get => _bookSpells; set => _bookSpells = value; }
+    internal Potion GetMaxPricePotion => _potions.OrderByDescending(x => x.Price).OrderBy(x => x.NbIngredientsRequired).FirstOrDefault();
 
-    internal void NewTurn()
+    internal void AddOrder(List<Order> allOrders)
     {
-        _myWitch.Reset();
-        _opponentWitch.Reset();
-        
-        _gamePotions = new List<Order>();
-        _gameSpells = new List<Order>();
+        _potions.RemoveAll(x => !allOrders.Select(x => x.Id).Contains(x.Id));
+        _bookSpells.RemoveAll(x => !allOrders.Select(x => x.Id).Contains(x.Id));
 
-        _isFirstTurn = false;
+        if (MyWitch.PotionToBrew != null &&
+            !_potions.Contains(MyWitch.PotionToBrew))
+        {
+            MyWitch.PotionToBrew = null;
+        }
+
+        foreach (Order order in allOrders)
+        {
+            switch (order.ActionType)
+            {
+                case Global.BREW:
+                    if (!_potions.Any(x => x.Id == order.Id))
+                        _potions.Add((Potion)order);
+                    break;
+
+                case Global.LEARN:
+                    if (!_bookSpells.Any(x => x.Id == order.Id))
+                        _bookSpells.Add((Spell)order);
+                    break;
+
+                case Global.OPPONENT_CAST:
+                    _opponentWitch.MySpells.Add((Spell)order);
+                    break;
+                case Global.SPELL:
+                    _myWitch.MySpells.Add((Spell)order);
+                    break;
+            }
+        }
     }
 
-    public void ResetMaxIngredient()
+    internal void ResetMaxIngredient()
     {
         _maxIngredient0 = 0;
         _maxIngredient1 = 0;
@@ -162,349 +299,335 @@ class MyGame
         _maxIngredient3 = 0;
     }
 
-    internal void AddOrder(List<Order> allOrders)
+    internal void NewTurn()
     {
-        _gamePotions.RemoveAll(x => !allOrders.Select(x => x.Id).Contains(x.Id));
-        _gameSpells.RemoveAll(x => !allOrders.Select(x => x.Id).Contains(x.Id));
+        _myWitch.Reset();
+        _opponentWitch.Reset();
 
-        foreach(Order order in allOrders)
-        {
-            switch (order.ActionType)
-            {
-                case Global.BREW:
-                    if (!_gamePotions.Any(x => x.Id == order.Id))
-                        _gamePotions.Add(order);
-                    break;
+        _potions = new List<Potion>();
+        _bookSpells = new List<Spell>();
 
-                case Global.LEARN:
-                    if (!_gameSpells.Any(x => x.Id == order.Id))
-                        _gameSpells.Add(order);
-                    break;
-                
-                case Global.OPPONENT_CAST:
-                    _opponentWitch.MySpells.Add(order);
-                    break;
-                case Global.SPELL:
-                    _myWitch.MySpells.Add(order);
-                    break;
-            }
-        }
-    }
-
-    internal string WhatToDo()
-    {
-        int potionToBrewId = ChooseBestPotionsToBrew(_gamePotions);
-        if (potionToBrewId != -1)
-        {
-            return $"{Global.BREW} {potionToBrewId}";
-        }
-
-        int spellToLearnId = IsItSpellToLearn(_gameSpells);
-        if (spellToLearnId != -1 && _myWitch.MySpells.Count < 5)
-        {
-            return $"{Global.LEARN} {spellToLearnId}";
-        }
-
-        int spellId = WhatSpellToDo(_myWitch.MySpells.Where(x => x.Castable).ToList());
-        if (spellId != -1)
-        {
-            return $"{Global.SPELL} {spellId}";
-        }
-        
-        spellToLearnId = IsItSpellToLearn(_gameSpells);
-        if (spellToLearnId != -1 && _myWitch.MySpells.Where(x => !x.Castable).Count() < 5)
-        {
-            return $"{Global.LEARN} {spellToLearnId}";
-        }
-
-        if (_myWitch.MySpells.Any(x => !x.Castable))
-            return "REST";
-        
-        // We don't have anything to do ? Maybe there is still an action better than wait.
-        if (_myWitch.MyInventory.Ingredient0 <= 0)
-            spellId = DoFreeSpell(_myWitch.MySpells.Where(x => x.Castable && x.NbIngredientsCost == 0).ToList());
-            if (spellId != -1)
-            {
-                return $"{Global.SPELL} {spellId}";
-            }
-        return "WAIT";
-    }
-
-    private int IsItSpellToLearn(List<Order> spellBooks)
-    {
-        Order spellToLearn = null;
-        foreach(Order spell in spellBooks)
-        {
-            if (spell.NbIngredientsCost > spell.NbIngredientsAdd)
-                continue;
-
-            if (spellToLearn == null ||
-                spellToLearn.NbIngredientsCost >= spell.NbIngredientsCost &&
-                (spellToLearn.NbIngredientTypesAdd < spell.NbIngredientTypesAdd ||
-                (spellToLearn.NbIngredientTypesAdd == spell.NbIngredientTypesAdd && spellToLearn.NbIngredientsAdd < spell.NbIngredientsAdd))
-            )
-            {
-                if (spell.TomeIndex <= _myWitch.MyInventory.Ingredient0)
-                    spellToLearn = spell;
-            }
-        }
-
-        if (spellToLearn != null)
-        {
-            return spellToLearn.Id;
-        }
-
-        return -1;
-    }
-
-    private int ChooseBestPotionsToBrew(List<Order> potions)
-    {
-        Order potionToBrew = null;
-        foreach (Order potion in potions)
-        {
-            if (CanIBrewPotions(potion.Id))
-            {
-                if ((potionToBrew == null || potionToBrew.Price < potion.Price) && potion.NbIngredientsCost <= potion.Price)
-                    potionToBrew = potion;
-            }
-        }
-
-        if (potionToBrew != null)
-            return potionToBrew.Id;
-
-        return -1;
-    }
-
-    private int WhatSpellToDo(List<Order> spells)
-    {
-        foreach(Order spell in spells)
-        {
-            if (CanICastSpell(spell.Id))
-            {
-                return spell.Id;
-            }
-        }
-
-        return -1;
-    }
-
-    private bool CanIBrewPotions(int potionId)
-    {
-        Order potion = _gamePotions.Where(x => x.Id == potionId).First();
-
-        if (_myWitch.MyInventory.Ingredient0 + potion.Ingredient0 >= 0 &&
-            _myWitch.MyInventory.Ingredient1 + potion.Ingredient1 >= 0 &&
-            _myWitch.MyInventory.Ingredient2 + potion.Ingredient2 >= 0 &&
-            _myWitch.MyInventory.Ingredient3 + potion.Ingredient3 >= 0)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool CanICastSpell(int spellId)
-    {
-        Order spell = _myWitch.MySpells.Where(x => x.Id == spellId).First();
-        if (_myWitch.MyInventory.Ingredient0 + spell.Ingredient0 >= 0 &&
-            _myWitch.MyInventory.Ingredient1 + spell.Ingredient1 >= 0 &&
-            _myWitch.MyInventory.Ingredient2 + spell.Ingredient2 >= 0 &&
-            _myWitch.MyInventory.Ingredient3 + spell.Ingredient3 >= 0)
-        {
-            Console.Error.WriteLine($"!!!!!!! HELLO !!!!!!!!");
-            // I can cast this spell, but does I need it ?
-            if ((spell.NbIngredientsAdd - spell.NbIngredientsRequired) <= (10 - _myWitch.MyInventory.NbIngredients) &&
-                (spell.Ingredient0 > 0 && (_maxIngredient0 - _myWitch.MyInventory.Ingredient0 > 0) ||
-                spell.Ingredient1 > 0 && (_maxIngredient1 - _myWitch.MyInventory.Ingredient1 > 0) ||
-                spell.Ingredient2 > 0 && (_maxIngredient2 - _myWitch.MyInventory.Ingredient2 > 0) ||
-                spell.Ingredient3 > 0 && (_maxIngredient3 - _myWitch.MyInventory.Ingredient3 > 0))
-            )
-                return true;
-        }
-
-        DebugLogs.WriteOrderIngredients(spell);
-        DebugLogs.WriteInventoryIngredients(_myWitch.MyInventory);
-        DebugLogs.WriteMaxIngredientsNeeded(this);
-        return false;
-    }
-
-    private int DoFreeSpell(List<Order> freeSpells)
-    {
-        if (freeSpells.Count > 0)
-        {
-            return freeSpells.OrderByDescending(x => x.NbIngredientTypesAdd).First().Id;
-        }
-
-        return -1;
+        _isFirstTurn = false;
     }
 }
 
-class Witch
+abstract class IngredientsList
 {
-    Witch _previousState;
-    Inventory _myInventory;
-    List<Order> _mySpells;
-    int _score;    
+    Dictionary<Ingredient, int> _ingredients = new Dictionary<Ingredient, int>();
 
-    public Witch()
+    internal IngredientsList()
     {
-        _myInventory = new Inventory();
-        _mySpells = new List<Order>();
-        _score = 0;
-        _previousState = null;
+        _ingredients.Add(new Ingredient0(), 0);
+        _ingredients.Add(new Ingredient1(), 0);
+        _ingredients.Add(new Ingredient2(), 0);
+        _ingredients.Add(new Ingredient3(), 0);
     }
 
-    internal Witch PreviousState { get => _previousState; set => _previousState = value; }
-    internal Inventory MyInventory { get => _myInventory; set => _myInventory = value; }
-    internal List<Order> MySpells { get => _mySpells; set => _mySpells = value; }
-    public int Score { get => _score; set => _score = value; }
-
-    internal void Reset()
+    internal IngredientsList(int delta0, int delta1, int delta2, int delta3)
     {
-        _myInventory = new Inventory();
-        _mySpells = new List<Order>();
-        _score = 0;
-        _previousState = this;
+        _ingredients.Add(new Ingredient0(), delta0);
+        _ingredients.Add(new Ingredient1(), delta1);
+        _ingredients.Add(new Ingredient2(), delta2);
+        _ingredients.Add(new Ingredient3(), delta3);
+    }
+
+    internal Dictionary<Ingredient, int> Ingredients { get => _ingredients; set => _ingredients = value; }
+    internal KeyValuePair<Ingredient, int> GetIngredient(Type type) => _ingredients.Where(x => x.Key.GetType() == type).First();
+    internal KeyValuePair<Ingredient, int> GetIngredient(Ingredient ingredient) => _ingredients.Where(x => x.Key.Type == ingredient.Type).First();
+    internal KeyValuePair<Ingredient, int> GetIngredient0 => GetIngredient(typeof(Ingredient0));
+    internal KeyValuePair<Ingredient, int> GetIngredient1 => GetIngredient(typeof(Ingredient1));
+    internal KeyValuePair<Ingredient, int> GetIngredient2 => GetIngredient(typeof(Ingredient2));
+    internal KeyValuePair<Ingredient, int> GetIngredient3 => GetIngredient(typeof(Ingredient3));
+
+    public bool CanCast(IngredientsList inventory)
+    {
+        foreach (KeyValuePair<Ingredient, int> ingredient in Ingredients.Where(x => x.Value < 0))
+        {
+            if (Math.Abs(ingredient.Value) > inventory.GetIngredient(ingredient.Key).Value)
+                return false;
+        }
+
+        return true;
     }
 }
 
-class Inventory
+abstract class Ingredient
 {
-    int _ingredient0, _ingredient1, _ingredient2, _ingredient3;
+    int _type;
+    int _cost;
 
-    int _nbIngredients;
-
-    int _score;
-
-    public Inventory()
+    internal Ingredient(int type, int cost)
     {
-        _ingredient0 = 0;
-        _ingredient1 = 0;
-        _ingredient2 = 0;
-        _ingredient3 = 0;
-        _score = 0;
+        _type = type;
+        _cost = cost;
     }
 
-    public int Ingredient0 { get => _ingredient0; set => _ingredient0 = value; }
-    public int Ingredient1 { get => _ingredient1; set => _ingredient1 = value; }
-    public int Ingredient2 { get => _ingredient2; set => _ingredient2 = value; }
-    public int Ingredient3 { get => _ingredient3; set => _ingredient3 = value; }
-    public int Score { get => _score; set => _score = value; }
-
-    public int NbIngredients => Ingredient0 + Ingredient1 + Ingredient2 + Ingredient3;
+    internal int Type => _type;
+    internal int Cost => _cost;
 }
 
-class Order
+class Ingredient0 : Ingredient
+{
+    internal Ingredient0()
+        : base(0, 1)
+    {
+    }
+}
+
+class Ingredient1 : Ingredient
+{
+    internal Ingredient1()
+        : base(1, 2)
+    {
+    }
+}
+
+class Ingredient2 : Ingredient
+{
+    internal Ingredient2()
+        : base(2, 3)
+    {
+    }
+}
+
+class Ingredient3 : Ingredient
+{
+    internal Ingredient3()
+        : base(3, 4)
+    {
+    }
+}
+
+class Inventory : IngredientsList
+{
+    internal Inventory()
+        : base()
+    {
+    }
+
+    internal Inventory(int[] deltas)
+        : base(deltas[0], deltas[1], deltas[2], deltas[3])
+    {
+    }
+
+    internal Dictionary<Ingredient, int> GetMissingIngredients(IngredientsList ingredientsNeeded)
+    {
+        Dictionary<Ingredient, int> missingIngredients = new Dictionary<Ingredient, int>();
+
+        foreach (KeyValuePair<Ingredient, int> neededIngredient in ingredientsNeeded.Ingredients.Where(x => x.Value < 0))
+        {
+            if (GetIngredient(neededIngredient.Key.GetType()).Value < Math.Abs(neededIngredient.Value))
+            {
+                missingIngredients.Add(neededIngredient.Key, Math.Abs(neededIngredient.Value) - GetIngredient(neededIngredient.Key.GetType()).Value);
+            }
+        }
+
+        return missingIngredients;
+    }
+}
+
+abstract class Order
 {
     int _id;
     string _actionType;
-    int _ingredient0, _ingredient1, _ingredient2, _ingredient3;
-    int _price;
-    int _tomeIndex;
-    int _taxCount;
+
+    Recipe _recipe;
+
     int _nbIngredientsAdd;
     int _nbIngredientsCost;
     int _nbIngredientTypesAdd;
     int _nbIngredientTypesCost;
     int _nbIngredientsRequired;
-    bool _castable;
-    bool _repeatable;
 
-    public Order(int id, string actionType, int delta0, int delta1, int delta2, int delta3, int price, int tomeIndex, int taxCount, bool castable, bool repeatable)
+    internal Order(int id, string actionType, int delta0, int delta1, int delta2, int delta3)
     {
         _id = id;
         _actionType = actionType;
-        _ingredient0 = delta0;
-        _ingredient1 = delta1;
-        _ingredient2 = delta2;
-        _ingredient3 = delta3;
-        _price = price;
+
+        _recipe = new Recipe(delta0, delta1, delta2, delta3);
+    }
+
+    internal int Id => _id;
+    internal string ActionType => _actionType;
+    internal Recipe Recipe => _recipe;
+    internal int NbIngredientsAdd => _recipe.NbIngredientsAdd;
+    internal int NbIngredientsRequired => _recipe.NbIngredientsRequired;
+    internal int NbIngredientTypesAdd => _recipe.IngredientsTypeAdd.Count;
+    internal int NbIngredientTypesRequired => _recipe.IngredientsTypeRequired.Count;
+}
+
+class Recipe : IngredientsList
+{
+    internal Recipe(int delta0, int delta1, int delta2, int delta3)
+        : base(delta0, delta1, delta2, delta3)
+    {
+    }
+
+    internal int NbIngredientsRequired => Ingredients.Where(x => x.Value < 0).Sum(x => x.Value);
+    internal int NbIngredientsAdd => Ingredients.Where(x => x.Value > 0).Sum(x => x.Value);
+    internal List<int> IngredientsTypeRequired => Ingredients.Where(x => x.Value < 0).Select(x => x.Key.Type).ToList();
+    internal List<int> IngredientsTypeAdd => Ingredients.Where(x => x.Value > 0).Select(x => x.Key.Type).ToList();
+}
+
+internal class Witch
+{
+    Witch _previousState;
+    Inventory _myInventory;
+    List<Spell> _mySpells;
+    Potion _potionToBrew;
+    bool _canBrewPotion;
+    int _score;
+
+    internal Witch()
+    {
+        _myInventory = new Inventory();
+        _mySpells = new List<Spell>();
+        _score = 0;
+        _previousState = null;
+        _potionToBrew = null;
+        _canBrewPotion = false;
+    }
+
+    internal Witch PreviousState { get => _previousState; set => _previousState = value; }
+    internal Inventory MyInventory { get => _myInventory; set => _myInventory = value; }
+    internal List<Spell> MySpells { get => _mySpells; set => _mySpells = value; }
+    internal Potion PotionToBrew
+    {
+        get => _potionToBrew;
+        set
+        {
+            _potionToBrew = value;
+        }
+    }
+
+    public bool CanBrewPotion
+    {
+        get => _canBrewPotion;
+        set
+        {
+            if (PotionToBrew != null)
+            {
+                if (MyInventory.Ingredients.Values.Count >= PotionToBrew.Recipe.NbIngredientsRequired)
+                {
+                    _canBrewPotion = MyInventory.Equals(PotionToBrew.Recipe.Ingredients);
+                }
+            }
+            _canBrewPotion = false;
+        }
+    }
+    internal int Score { get => _score; set => _score = value; }
+
+    internal void Reset()
+    {
+        _previousState = this;
+        _myInventory = new Inventory();
+        _mySpells = new List<Spell>();
+        _score = 0;
+    }
+}
+
+class Spell : Order
+{
+    int _tomeIndex;
+    int _taxCount;
+    bool _castable;
+    bool _repeatable;
+
+    internal Spell(int id, string actionType, int delta0, int delta1, int delta2, int delta3, int tomeIndex, int taxCount, bool castable, bool repeatable)
+        : base(id, actionType, delta0, delta1, delta2, delta3)
+    {
         _tomeIndex = tomeIndex;
         _taxCount = taxCount;
+
         _castable = castable;
         _repeatable = repeatable;
-        
-        Calculate();
     }
 
-    public int Id => _id;
-    public string ActionType => _actionType;
-    public int Ingredient0 => _ingredient0;
-    public int Ingredient1 => _ingredient1;
-    public int Ingredient2 => _ingredient2;
-    public int Ingredient3 => _ingredient3;
-    public int Price => _price;
-    public int TomeIndex => _tomeIndex;
-    public int TaxCount => _taxCount;
-    public int NbIngredientsAdd => _nbIngredientsAdd;
-    public int NbIngredientsCost => _nbIngredientsCost;
-    public int NbIngredientTypesAdd => _nbIngredientTypesAdd;
-    public int NbIngredientTypesCost => _nbIngredientTypesCost;
-    public int NbIngredientsRequired => _nbIngredientsRequired;
-    public bool Castable => _castable;
-    public bool Reapeatable => _repeatable;    
-
-    private void Calculate()
+    internal int TomeIndex => _tomeIndex;
+    internal int TaxCount => _taxCount;
+    internal bool Castable => _castable;
+    internal bool Reapeatable => _repeatable;
+    internal bool CanCast(Inventory inventory)
     {
-        if (_ingredient0 > 0)
-        {
-            _nbIngredientTypesAdd++;
-            _nbIngredientsAdd += _ingredient0;
-        }
-        else if (_ingredient0 < 0)
-        {
-            _nbIngredientTypesCost++;
-            _nbIngredientsCost += Math.Abs(_ingredient0);
-            _nbIngredientsRequired += Math.Abs(_ingredient0);
-        }
-
-        if (_ingredient1 > 0)
-        {
-            _nbIngredientTypesAdd++;
-            _nbIngredientsAdd += _ingredient1;
-        }
-        else if (_ingredient1 < 0)
-        {
-            _nbIngredientTypesCost++;
-            _nbIngredientsCost += Math.Abs(_ingredient1) * 2;
-            _nbIngredientsRequired += Math.Abs(_ingredient1);
-        }
-
-        if (_ingredient2 > 0)
-        {
-            _nbIngredientTypesAdd++;
-            _nbIngredientsAdd += _ingredient2;
-        }
-        else if (_ingredient2 < 0)
-        {
-            _nbIngredientTypesCost++;
-            _nbIngredientsCost += Math.Abs(_ingredient2) * 3;
-            _nbIngredientsRequired += Math.Abs(_ingredient2);
-        }
-
-        if (_ingredient3 > 0)
-        {
-            _nbIngredientTypesAdd++;
-            _nbIngredientsAdd += _ingredient3;
-        }
-        else if (_ingredient3 < 0)
-        {
-            _nbIngredientTypesCost++;
-            _nbIngredientsCost += Math.Abs(_ingredient3) * 4;
-            _nbIngredientsRequired += Math.Abs(_ingredient3);
-        }
+        if (Recipe.NbIngredientsAdd - Recipe.NbIngredientsRequired + inventory.Ingredients.Values.Sum() <= 10)
+            return Recipe.CanCast(inventory);
+        else
+            return false;
     }
+
+    internal bool CanGiveAllIngredients(Dictionary<Ingredient, int> ingredientsNeeded)
+    {
+        // DebugLogs.WriteOrderIngredients(this);
+
+        foreach (KeyValuePair<Ingredient, int> ingredientNeeded in ingredientsNeeded)
+        {
+            // Console.Error.WriteLine($"Ingredient needed is contains in Recipe : {Recipe.IngredientsTypeAdd.Contains(ingredientNeeded.Key.Type)}");
+
+            // Console.Error.WriteLine($"Ingredient type [{ingredientNeeded.Key.Type}]\n nb needed [{ingredientNeeded.Value}]");
+            if (!Recipe.IngredientsTypeAdd.Contains(ingredientNeeded.Key.Type) ||
+                ingredientNeeded.Value > this.Recipe.GetIngredient(ingredientNeeded.Key.GetType()).Value)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal bool CanGiveAllIngredient(Dictionary<Ingredient, int> ingredientsNeeded)
+    {
+        foreach (KeyValuePair<Ingredient, int> ingredientNeeded in ingredientsNeeded)
+        {
+            // Console.Error.WriteLine($"Ingredient needed is contains in Recipe : {Recipe.IngredientsTypeAdd.Contains(ingredientNeeded.Key.Type)}");
+
+            // Console.Error.WriteLine($"Ingredient type [{ingredientNeeded.Key.Type}]\n nb needed [{ingredientNeeded.Value}]");
+            if (!Recipe.IngredientsTypeAdd.Contains(ingredientNeeded.Key.Type) ||
+                ingredientNeeded.Value == this.Recipe.GetIngredient(ingredientNeeded.Key.GetType()).Value)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal bool CanGiveAllIngredientsType(Dictionary<Ingredient, int> ingredientsNeeded)
+    {
+        return ingredientsNeeded.Keys.All(x => Recipe.IngredientsTypeAdd.Contains(x.Type));
+    }
+
+    internal int CostToLearn(Inventory inventory)
+    {
+        return TomeIndex - inventory.GetIngredient0.Value;
+    }
+}
+
+class Potion : Order
+{
+    int _price;
+    internal Potion(int id, string actionType, int delta0, int delta1, int delta2, int delta3, int price)
+        : base(id, actionType, delta0, delta1, delta2, delta3)
+    {
+        _price = price;
+    }
+    internal int Price => _price;
 }
 
 static class DebugLogs
 {
     internal static void WriteOrderIngredients(Order o)
     {
+        if (o == null)
+        {
+            Console.Error.WriteLine("!!! Null Order !!!");
+            return;
+        }
+
         StringBuilder sb = new StringBuilder($"Order id[{o.Id}] actionType[{o.ActionType}] \t");
-        sb.Append($"Ingredient0[{o.Ingredient0}] \t");
-        sb.Append($"Ingredient1[{o.Ingredient1}] \t");
-        sb.Append($"Ingredient2[{o.Ingredient2}] \t");
-        sb.Append($"Ingredient3[{o.Ingredient3}]");
+        sb.Append($"Ingredient0[{o.Recipe.GetIngredient0.Value}] \t");
+        sb.Append($"Ingredient1[{o.Recipe.GetIngredient1.Value}] \t");
+        sb.Append($"Ingredient2[{o.Recipe.GetIngredient2.Value}] \t");
+        sb.Append($"Ingredient3[{o.Recipe.GetIngredient3.Value}]");
 
         Console.Error.WriteLine(sb);
     }
@@ -512,21 +635,33 @@ static class DebugLogs
     internal static void WriteInventoryIngredients(Inventory inventory)
     {
         StringBuilder sb = new StringBuilder($"Inventory ingredients : \t");
-        sb.Append($"Ingredient0[{inventory.Ingredient0}] \t");
-        sb.Append($"Ingredient1[{inventory.Ingredient1}] \t");
-        sb.Append($"Ingredient2[{inventory.Ingredient2}] \t");
-        sb.Append($"Ingredient3[{inventory.Ingredient3}]");
+        sb.Append($"Ingredient0[{inventory.GetIngredient0.Value}] \t");
+        sb.Append($"Ingredient1[{inventory.GetIngredient1.Value}] \t");
+        sb.Append($"Ingredient2[{inventory.GetIngredient2.Value}] \t");
+        sb.Append($"Ingredient3[{inventory.GetIngredient3.Value}]");
 
         Console.Error.WriteLine(sb);
     }
 
-    internal static void WriteMaxIngredientsNeeded(MyGame game)
+    internal static void WriteMaxIngredientsNeeded(GameInfos game)
     {
         StringBuilder sb = new StringBuilder($"Max ingredients needed : \t");
         sb.Append($"Ingredient0[{game.MaxIngredient0}] \t");
         sb.Append($"Ingredient2[{game.MaxIngredient1}] \t");
         sb.Append($"Ingredient2[{game.MaxIngredient2}] \t");
         sb.Append($"Ingredient3[{game.MaxIngredient3}] \t");
+
+        Console.Error.WriteLine(sb);
+    }
+
+    internal static void WriteMissingIngredients(Dictionary<Ingredient, int> missingIngredients)
+    {
+        StringBuilder sb = new StringBuilder($"Missing ingredients : \t");
+
+        foreach (KeyValuePair<Ingredient, int> ingredient in missingIngredients)
+        {
+            sb.Append($"Ingredient{ingredient.Key.Type} {ingredient.Value}\t");
+        }
 
         Console.Error.WriteLine(sb);
     }

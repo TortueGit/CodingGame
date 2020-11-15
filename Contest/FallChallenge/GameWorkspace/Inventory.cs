@@ -6,12 +6,12 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
 {
     class Inventory : IngredientsList
     {
-        internal Inventory() 
+        internal Inventory()
             : base()
         {
-        }        
-        
-        internal Inventory(int[] deltas) 
+        }
+
+        internal Inventory(int[] deltas)
             : base(deltas[0], deltas[1], deltas[2], deltas[3])
         {
         }
@@ -20,11 +20,11 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
         {
             Dictionary<Ingredient, int> missingIngredients = new Dictionary<Ingredient, int>();
 
-            foreach(KeyValuePair<Ingredient, int> neededIngredient in ingredientsNeeded.Ingredients.Where(x => x.Value < 0))
+            foreach (KeyValuePair<Ingredient, int> neededIngredient in ingredientsNeeded.Ingredients.Where(x => x.Value < 0))
             {
-                if (Ingredients[neededIngredient.Key] < Math.Abs(neededIngredient.Value))
+                if (GetIngredient(neededIngredient.Key.GetType()).Value < Math.Abs(neededIngredient.Value))
                 {
-                    missingIngredients.Add(neededIngredient.Key, Math.Abs(neededIngredient.Value) - Ingredients[neededIngredient.Key]);
+                    missingIngredients.Add(neededIngredient.Key, Math.Abs(neededIngredient.Value) - GetIngredient(neededIngredient.Key.GetType()).Value);
                 }
             }
 

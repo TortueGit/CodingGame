@@ -5,7 +5,7 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
 {
     class Recipe : IngredientsList
     {
-        internal Recipe(int delta0, int delta1, int delta2, int delta3) 
+        internal Recipe(int delta0, int delta1, int delta2, int delta3)
             : base(delta0, delta1, delta2, delta3)
         {
         }

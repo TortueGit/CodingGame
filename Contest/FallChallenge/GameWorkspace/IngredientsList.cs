@@ -6,7 +6,7 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
 {
     abstract class IngredientsList
     {
-        Dictionary<Ingredient, int> _ingredients;
+        Dictionary<Ingredient, int> _ingredients = new Dictionary<Ingredient, int>();
 
         internal IngredientsList()
         {
@@ -26,21 +26,20 @@ namespace CodingGame.Contest.FallChallenge.GameWorkspace
 
         internal Dictionary<Ingredient, int> Ingredients { get => _ingredients; set => _ingredients = value; }
         internal KeyValuePair<Ingredient, int> GetIngredient(Type type) => _ingredients.Where(x => x.Key.GetType() == type).First();
+        internal KeyValuePair<Ingredient, int> GetIngredient(Ingredient ingredient) => _ingredients.Where(x => x.Key.Type == ingredient.Type).First();
         internal KeyValuePair<Ingredient, int> GetIngredient0 => GetIngredient(typeof(Ingredient0));
         internal KeyValuePair<Ingredient, int> GetIngredient1 => GetIngredient(typeof(Ingredient1));
         internal KeyValuePair<Ingredient, int> GetIngredient2 => GetIngredient(typeof(Ingredient2));
         internal KeyValuePair<Ingredient, int> GetIngredient3 => GetIngredient(typeof(Ingredient3));
 
-        public override bool Equals(object obj)
+        public bool CanCast(IngredientsList inventory)
         {
-            IngredientsList recipe = (IngredientsList)obj;
-
-            foreach(KeyValuePair<Ingredient, int> ingredient in Ingredients.Where(x => x.Value < 0))
+            foreach (KeyValuePair<Ingredient, int> ingredient in Ingredients.Where(x => x.Value < 0))
             {
-                if (ingredient.Value > recipe.Ingredients[ingredient.Key])
+                if (Math.Abs(ingredient.Value) > inventory.GetIngredient(ingredient.Key).Value)
                     return false;
             }
-            
+
             return true;
         }
     }
