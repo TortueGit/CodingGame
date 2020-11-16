@@ -59,13 +59,13 @@ class Player
 
                 if (actionType.Equals(Global.BREW) && price >= Global.MIN_PRICE)
                 {
-                    if (game.MaxIngredient0 < Math.Abs(delta0))
+                    // if (game.MaxIngredient0 < Math.Abs(delta0))
                         game.MaxIngredient0 = Math.Abs(delta0);
-                    if (game.MaxIngredient1 < Math.Abs(delta1))
+                    // if (game.MaxIngredient1 < Math.Abs(delta1))
                         game.MaxIngredient1 = Math.Abs(delta1);
-                    if (game.MaxIngredient2 < Math.Abs(delta2))
+                    // if (game.MaxIngredient2 < Math.Abs(delta2))
                         game.MaxIngredient2 = Math.Abs(delta2);
-                    if (game.MaxIngredient3 < Math.Abs(delta3))
+                    // if (game.MaxIngredient3 < Math.Abs(delta3))
                         game.MaxIngredient3 = Math.Abs(delta3);
 
                     // DebugLogs.WriteMaxIngredientsNeeded(game);
