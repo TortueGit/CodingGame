@@ -15,9 +15,9 @@ namespace CodingGame.Contest.FallChallenge.src.game.spell
 
         public int Stock => -1;
 
-        public bool IsActive => false;
+        public virtual bool IsActive() => false;
 
-        public bool IsOwner(PlayerGame player) => false;
+        public virtual bool IsOwner(PlayerWitch player) => false;
 
         public int[] GetDelta => _recipe.Delta;
 

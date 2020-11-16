@@ -71,24 +71,24 @@ namespace CodingGame.Contest.FallChallenge.src.game
             return String.Format("%d %d %d %d", _delta[0], _delta[1], _delta[2], _delta[3]);
         }
 
-        public void add(int idx, int x) 
+        public void Add(int idx, int x) 
         {
             _delta[idx] += x;
         }
 
-        public int getTotal() 
+        public int GetTotal() 
         {
             return _delta.Sum();
         }
 
-        public int getTotalLoss() 
+        public int GetTotalLoss() 
         {
             return -_delta
                 .Where(i => i < 0)
                 .Sum();
         }
 
-        public int getTotalGain() 
+        public int GetTotalGain() 
         {
             return _delta
                 .Where(i => i > 0)
