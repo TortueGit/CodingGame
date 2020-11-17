@@ -10,22 +10,23 @@ namespace CodingGame.Contest.FallChallenge.src.game.spell
         int _id = INSTANCE_COUNT++;
 
         public int Id => _id;
+        public Recipe Recipe { get => _recipe; set => _recipe = value; }
 
-        public int Score => 0;
+        public virtual int GetScore() => 0;
 
-        public int Stock => -1;
+        public virtual int GetStock() => -1;
 
         public virtual bool IsActive() => false;
 
         public virtual bool IsOwner(PlayerWitch player) => false;
 
-        public int[] GetDelta => _recipe.Delta;
+        public int[] GetDelta() => _recipe.Delta;
 
-        public Recipe Recipe { get => _recipe; set => _recipe = value; }
 
         public abstract bool IsRepeatable();
-        
-        public override String ToString() {
+
+        public override String ToString()
+        {
             return Convert.ToString(_id);
         }
     }

@@ -1,32 +1,21 @@
 using CodingGame.Contest.FallChallenge.src.game.spell;
 
 namespace CodingGame.Contest.FallChallenge.src.game
-{
+{    
     public class DeliveryCompletion
     {
-        private DeliverySpell delivery;
-        private int index, earned;
+        private DeliverySpell _delivery;
+        private int _index, _earned;
 
         public DeliveryCompletion(DeliverySpell delivery, int index, int earned)
         {
-            this.delivery = delivery;
-            this.index = index;
-            this.earned = earned;
+            _delivery = delivery;
+            _index = index;
+            _earned = earned;
         }
 
-        public DeliverySpell getDelivery()
-        {
-            return delivery;
-        }
-
-        public int getIndex()
-        {
-            return index;
-        }
-
-        public int getEarned()
-        {
-            return earned;
-        }
+        public DeliverySpell Delivery => _delivery;
+        public int Index => _index;
+        public int Earned => _earned;
     }
 }

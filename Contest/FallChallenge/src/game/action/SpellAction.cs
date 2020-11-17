@@ -13,8 +13,8 @@ namespace CodingGame.Contest.FallChallenge.src.game.action
             _param = param;
         }
 
-        public override bool IsSpell => true;
+        public override bool IsSpell() => true;
 
-        public override int GetRepeats => _param ?? 1;
+        public override int GetRepeats() => _param ?? 1;
     }
 }

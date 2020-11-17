@@ -10,7 +10,7 @@ namespace CodingGame.Contest.FallChallenge.src.game.spell
             _score = score;
         }
 
-        public int GetScore()
+        public override int GetScore()
         {
             return _score;
         }
@@ -19,6 +19,5 @@ namespace CodingGame.Contest.FallChallenge.src.game.spell
         {
             return false;
         }
-
     }
 }

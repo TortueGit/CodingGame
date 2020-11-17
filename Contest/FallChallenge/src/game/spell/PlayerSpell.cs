@@ -40,12 +40,12 @@ namespace CodingGame.Contest.FallChallenge.src.game.spell
             return _repeatable;
         }
 
-        public void activate()
+        public void Activate()
         {
             _active = true;
         }
 
-        public void deactivate()
+        public void Deactivate()
         {
             _active = false;
         }

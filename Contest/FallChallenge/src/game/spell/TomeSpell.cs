@@ -15,7 +15,7 @@ namespace CodingGame.Contest.FallChallenge.src.game.spell
             _repeatable = recipe.Delta.Any(x => x < 0);
         }
 
-        public int GetStock()
+        public override int GetStock()
         {
             return _stock;
         }
