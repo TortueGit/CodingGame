@@ -9,12 +9,13 @@ using System.Collections.Generic;
 
 static class Global
 {
-    public const string SPELL = "CAST";
-    public const string OPPONENT_CAST = "OPPONENT_CAST";
-    public const string LEARN = "LEARN";
-    public const string BREW = "BREW";
+    internal const string SPELL = "CAST";
+    internal const string OPPONENT_CAST = "OPPONENT_CAST";
+    internal const string LEARN = "LEARN";
+    internal const string BREW = "BREW";
 
-    public const int MIN_PRICE = 12;
+    internal const int MIN_PRICE = 10;
+    internal const int NB_POTION_TO_BREW = 6;
 }
 
 /**
@@ -22,7 +23,7 @@ static class Global
  * the standard input according to the problem statement.
  **/
 class Player
-{
+{    
     static void Main(string[] args)
     {
         string[] inputs;
@@ -57,15 +58,15 @@ class Player
 
                 int price = int.Parse(inputs[6]); // the price in rupees if this is a potion
 
-                if (actionType.Equals(Global.BREW) && price >= Global.MIN_PRICE)
+                if (actionType.Equals(Global.BREW) && (price >= Global.MIN_PRICE || game.MyWitch.IsLastPotionToBrew()))
                 {
-                    // if (game.MaxIngredient0 < Math.Abs(delta0))
+                    if (game.MaxIngredient0 < Math.Abs(delta0))
                         game.MaxIngredient0 = Math.Abs(delta0);
-                    // if (game.MaxIngredient1 < Math.Abs(delta1))
+                    if (game.MaxIngredient1 < Math.Abs(delta1))
                         game.MaxIngredient1 = Math.Abs(delta1);
-                    // if (game.MaxIngredient2 < Math.Abs(delta2))
+                    if (game.MaxIngredient2 < Math.Abs(delta2))
                         game.MaxIngredient2 = Math.Abs(delta2);
-                    // if (game.MaxIngredient3 < Math.Abs(delta3))
+                    if (game.MaxIngredient3 < Math.Abs(delta3))
                         game.MaxIngredient3 = Math.Abs(delta3);
 
                     // DebugLogs.WriteMaxIngredientsNeeded(game);
@@ -126,7 +127,7 @@ class MyGame
     int _maxIngredient3;
     bool _isFirstTurn;
 
-    public MyGame()
+    internal MyGame()
     {
         _myWitch = new Witch();
         _opponentWitch = new Witch();
@@ -158,7 +159,7 @@ class MyGame
         _isFirstTurn = false;
     }
 
-    public void ResetMaxIngredient()
+    internal void ResetMaxIngredient()
     {
         _maxIngredient0 = 0;
         _maxIngredient1 = 0;
@@ -209,11 +210,12 @@ class MyGame
         int potionToBrewId = ChooseBestPotionsToBrew(_gamePotions);
         if (potionToBrewId != -1)
         {
+            _myWitch.AddPotionBrewed();
             return $"{Global.BREW} {potionToBrewId}";
         }
 
         int spellToLearnId = IsItFreeSpellToLearn(_gameSpells);
-        if (spellToLearnId != -1)
+        if (spellToLearnId != -1 && !_myWitch.IsLastPotionToBrew())
         {
             return $"{Global.LEARN} {spellToLearnId}";
         }
@@ -225,8 +227,12 @@ class MyGame
         }
         
         spellToLearnId = IsItSpellToLearn(_gameSpells);
-        if (spellToLearnId != -1 && _myWitch.MySpells.Where(x => !x.Castable).Count() < 5)
+        if (spellToLearnId != -1 && 
+            _myWitch.MySpells.Where(x => !x.Castable).Count() < 5 && 
+            !_myWitch.IsLastPotionToBrew() &&
+            !(_myWitch.Score < _opponentWitch.Score))
         {
+            Console.Error.WriteLine($"MyScore : {_myWitch.Score} || OpponentScore : {_opponentWitch.Score}");
             return $"{Global.LEARN} {spellToLearnId}";
         }
 
@@ -303,7 +309,7 @@ class MyGame
     {
         Order potionToBrew = null;
 
-        if (potions.Where(x => x.Price >= Global.MIN_PRICE).Count() <= 0)
+        if (potions.Where(x => x.Price >= Global.MIN_PRICE).Count() <= 0 || _myWitch.IsLastPotionToBrew())
         {
             potionToBrew = potions.Where(x => CanIBrewPotions(x.Id)).OrderByDescending(x => x.Price).FirstOrDefault();
         }
@@ -370,10 +376,7 @@ class MyGame
             )
                 return true;
         }
-
-        // DebugLogs.WriteOrderIngredients(spell);
-        // DebugLogs.WriteInventoryIngredients(_myWitch.MyInventory);
-        // DebugLogs.WriteMaxIngredientsNeeded(this);
+        
         return false;
     }
 
@@ -393,9 +396,10 @@ class Witch
     Witch _previousState;
     Inventory _myInventory;
     List<Order> _mySpells;
-    int _score;    
+    int _score;
+    int _nbPotionBrewed = 0;
 
-    public Witch()
+    internal Witch()
     {
         _myInventory = new Inventory();
         _mySpells = new List<Order>();
@@ -403,10 +407,18 @@ class Witch
         _previousState = null;
     }
 
+    internal int NbPotionBrewed => _nbPotionBrewed;
     internal Witch PreviousState { get => _previousState; set => _previousState = value; }
     internal Inventory MyInventory { get => _myInventory; set => _myInventory = value; }
     internal List<Order> MySpells { get => _mySpells; set => _mySpells = value; }
-    public int Score { get => _score; set => _score = value; }
+    internal int Score { get => _score; set => _score = value; }
+
+    internal bool IsLastPotionToBrew() => _nbPotionBrewed == Global.NB_POTION_TO_BREW -1;
+
+    internal void AddPotionBrewed()
+    {
+        _nbPotionBrewed++;
+    }
 
     internal void Reset()
     {
@@ -425,7 +437,7 @@ class Inventory
 
     int _score;
 
-    public Inventory()
+    internal Inventory()
     {
         _ingredient0 = 0;
         _ingredient1 = 0;
@@ -434,13 +446,13 @@ class Inventory
         _score = 0;
     }
 
-    public int Ingredient0 { get => _ingredient0; set => _ingredient0 = value; }
-    public int Ingredient1 { get => _ingredient1; set => _ingredient1 = value; }
-    public int Ingredient2 { get => _ingredient2; set => _ingredient2 = value; }
-    public int Ingredient3 { get => _ingredient3; set => _ingredient3 = value; }
-    public int Score { get => _score; set => _score = value; }
+    internal int Ingredient0 { get => _ingredient0; set => _ingredient0 = value; }
+    internal int Ingredient1 { get => _ingredient1; set => _ingredient1 = value; }
+    internal int Ingredient2 { get => _ingredient2; set => _ingredient2 = value; }
+    internal int Ingredient3 { get => _ingredient3; set => _ingredient3 = value; }
+    internal int Score { get => _score; set => _score = value; }
 
-    public int NbIngredients => Ingredient0 + Ingredient1 + Ingredient2 + Ingredient3;
+    internal int NbIngredients => Ingredient0 + Ingredient1 + Ingredient2 + Ingredient3;
 }
 
 class Order
@@ -459,7 +471,7 @@ class Order
     bool _castable;
     bool _repeatable;
 
-    public Order(int id, string actionType, int delta0, int delta1, int delta2, int delta3, int price, int tomeIndex, int taxCount, bool castable, bool repeatable)
+    internal Order(int id, string actionType, int delta0, int delta1, int delta2, int delta3, int price, int tomeIndex, int taxCount, bool castable, bool repeatable)
     {
         _id = id;
         _actionType = actionType;
@@ -476,22 +488,22 @@ class Order
         Calculate();
     }
 
-    public int Id => _id;
-    public string ActionType => _actionType;
-    public int Ingredient0 => _ingredient0;
-    public int Ingredient1 => _ingredient1;
-    public int Ingredient2 => _ingredient2;
-    public int Ingredient3 => _ingredient3;
-    public int Price => _price;
-    public int TomeIndex => _tomeIndex;
-    public int TaxCount => _taxCount;
-    public int NbIngredientsAdd => _nbIngredientsAdd;
-    public int NbIngredientsCost => _nbIngredientsCost;
-    public int NbIngredientTypesAdd => _nbIngredientTypesAdd;
-    public int NbIngredientTypesCost => _nbIngredientTypesCost;
-    public int NbIngredientsRequired => _nbIngredientsRequired;
-    public bool Castable => _castable;
-    public bool Reapeatable => _repeatable;    
+    internal int Id => _id;
+    internal string ActionType => _actionType;
+    internal int Ingredient0 => _ingredient0;
+    internal int Ingredient1 => _ingredient1;
+    internal int Ingredient2 => _ingredient2;
+    internal int Ingredient3 => _ingredient3;
+    internal int Price => _price;
+    internal int TomeIndex => _tomeIndex;
+    internal int TaxCount => _taxCount;
+    internal int NbIngredientsAdd => _nbIngredientsAdd;
+    internal int NbIngredientsCost => _nbIngredientsCost;
+    internal int NbIngredientTypesAdd => _nbIngredientTypesAdd;
+    internal int NbIngredientTypesCost => _nbIngredientTypesCost;
+    internal int NbIngredientsRequired => _nbIngredientsRequired;
+    internal bool Castable => _castable;
+    internal bool Reapeatable => _repeatable;    
 
     private void Calculate()
     {
