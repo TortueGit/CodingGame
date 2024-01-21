@@ -18,8 +18,10 @@ enum ErrorLevel
 #pragma region Constants
 const char WALL = '#';
 const char FLOOR = ' ';
+const string ME_NAME = "me";
+const string OPPONENT_NAME = "opponent";
 const pair<int, int> NO_GOAL(-1, -1);
-const int ERROR_LVL = INFOS; // 0 -> show every logs. // 10 -> We submit, so we don't want to see logs, because we don't have errors in our code ;). We select a big value in case of we have lvl of error logs, but we don't have yet, so it just for fun :D
+const int ERROR_LVL = ERROR; // 0 -> show every logs. // 10 -> We submit, so we don't want to see logs, because we don't have errors in our code ;). We select a big value in case of we have lvl of error logs, but we don't have yet, so it just for fun :D
 #pragma endregion
 
 #pragma region GlobalProperties
@@ -83,52 +85,58 @@ public:
 	};
 
 	static const pair<int, int> GetClosestPosInVector(vector<pair<int, int>> locationList, pair<int, int> pos) {
-		vector<pair<double, pair<int, int>>> distPosList;
+		vector<pair<int, pair<int, int>>> distPosList;
 
 		stringstream infos;
+		infos << "looking for pos: [" << Tools::GetPairString(pos) << "]\n";
 		infos << "locationList: \n";
-		for (auto pos : locationList)
+		for (auto loc : locationList)
 		{
-			infos << Tools::GetPairString(pos) << "\n";
+			infos << Tools::GetPairString(loc) << "\n";
 		}
 
 		for (auto location : locationList)
 		{
-			int distX;
-			if (location.first > pos.first)
-			{
-				distX = location.first - pos.first;
-			}
-			else
-			{
-				distX = location.first + pos.first;
-			}
-			
-			int distY;
-			if (location.second > pos.second)
-			{
-				distY = location.second - pos.second;
-			}
-			else
-			{
-				distY = location.second + pos.second;
-			}
-
-			distPosList.push_back(make_pair(hypot(distX, distY), location));
+			distPosList.push_back(make_pair(GetDist(pos, location), location));
 		}
 
-		sort(distPosList.begin(), distPosList.end());
+		sort(distPosList.begin(), distPosList.end(), [](pair<int, pair<int, int>> el1, pair<int, pair<int, int>> el2) { return el1.first < el2.first; });
 
 		infos << "locationList sorted: \n";
-		for (auto pos : distPosList)
+		for (auto distPos : distPosList)
 		{
-			infos << Tools::GetPairString(pos.second) << "\n";
+			infos << Tools::GetPairString(distPos.second) << " dist: [" << distPos.first << "]" << "\n";
 		}
 		errorStrings.push_back(infos.str());
 		Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
 
 		return distPosList.at(0).second;
 	};
+
+	static const int GetDist(pair<int, int> initPos, pair<int, int> destPos)
+	{	
+		int distX;
+		if (destPos.first > initPos.first)
+		{
+			distX = destPos.first - initPos.first;
+		}
+		else
+		{
+			distX = initPos.first - destPos.first;
+		}
+		
+		int distY;
+		if (destPos.second > initPos.second)
+		{
+			distY = destPos.second - initPos.second;
+		}
+		else
+		{
+			distY = initPos.second - destPos.second;
+		}
+
+		return distX + distY;
+	}
 
 	Tools() = delete;
 };
@@ -162,12 +170,7 @@ public:
 			{
 				gameMap[h][w] = row.data()[w];
 			}
-			errorStrings.push_back(gameMap[h]);
 		}
-		Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
-
-		errorStrings.push_back("gameMap size: [" + to_string(sizeof(gameMap)) + "]");
-		Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
 
 		return gameMap;
 	};
@@ -262,13 +265,18 @@ public:
 		if (pos == this->destGoal)
 		{
 			errorStrings.push_back("RESET GOAL!!!");
-			Tools::PrintErrors(INFOS);
+			errorStrings.push_back(ToString());
+			Tools::PrintErrors(ERROR);
 			this->destGoal = NO_GOAL;
 		}
 	};
 
 	const string GetType(){
 		return this->type;
+	};
+
+	void SetType(string type) {
+		this->type = type;
 	};
 
 	const pair<int, int> GetDestGoal() {
@@ -284,10 +292,7 @@ public:
 	};
 
 	void SetPreviousLocation(pair<int, int> pos) {
-		this->previousLocation = pos;		
-		if (pos == this->destGoal) {
-			this->destGoal = NO_GOAL;
-		}
+		this->previousLocation = pos;
 	};
 
 	bool IsBlock() {
@@ -312,6 +317,26 @@ public:
 		this->blockingDest.clear();
 	}
 
+	bool IsMovingForward()
+	{
+		return this->location.first == this->previousLocation.first + 1;
+	}
+
+	bool IsMovingBackward()
+	{
+		return this->location.first == this->previousLocation.first - 1;
+	}
+
+	bool IsMovingUp()
+	{
+		return this->location.second == this->previousLocation.second + 1;
+	}
+
+	bool IsMovingDown()
+	{
+		return this->location.second == this->previousLocation.second - 1;
+	}
+
 	const string ToString() {
 		stringstream pacInfos;
 		pacInfos << "PacID: [" << this->pacId << "]" << "\n";
@@ -320,6 +345,7 @@ public:
 		pacInfos << "PreviousLocation: " << Tools::GetPairString(this->previousLocation) << "\n";
 		pacInfos << "IsBlock: " << IsBlock() << "\n";
 		pacInfos << "BlockingDest: " << this->blockingDest.size() << "\n";
+		pacInfos << "Type: " << this->type << "\n";
 
 		return pacInfos.str();
 	};
@@ -357,11 +383,8 @@ public:
 
 	void SetMapInfos(char* infos[])
 	{ 
-		stringstream stringInfos;
-		stringInfos << "SetMapInfos()! \n";
-		stringInfos << "mapInfos size: " << sizeof(infos) << "\n";
-		errorStrings.push_back(stringInfos.str());
-		Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
+		errorStrings.push_back("SetMapInfos(" + to_string(sizeof(infos)) + ")! \n");
+		Tools::PrintErrors(ErrorLevel::DEBUG);
 
 		this->mapInfos = infos;
 		PrintMapInfos();
@@ -373,15 +396,9 @@ public:
 		infos << "Map: \n";
 		infos << "mapHeight: " << this->mapHeight << "\n";
 		infos << "mapInfos size: " << sizeof(this->mapInfos) << "\n";
-		errorStrings.push_back(infos.str());
-		Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
-		infos.clear();
 		for (int h = 0; h < this->mapHeight; h++)
 		{			
 			infos << this->mapInfos[h] << "\n";
-			errorStrings.push_back(infos.str());
-			Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
-			infos.clear();
 		}
 
 		errorStrings.push_back(infos.str());
@@ -443,8 +460,6 @@ private:
 	};
 
 	bool IsObstacle(char mapValue) {
-		errorStrings.push_back("IsObstacle(" + to_string(mapValue) + ")");
-		Tools::PrintErrors(ErrorLevel::DEBUG);
 		if (mapValue == WALL)
 		{
 			return true;
@@ -456,6 +471,7 @@ private:
 
 struct Player
 {
+	string name;
 	int score;
 	vector<Pac*> pacs;
 };
@@ -469,11 +485,14 @@ private:
 	Player opponent;
 	vector<pair<int, int>> destGoals;
 	vector<pair<int, int>> knownPellets;
+	vector<pair<int, int>> knownLocationList;
 
 public:
 	Game() {
 		errorStrings.push_back("Game Init!");
 		Tools::PrintErrors(ErrorLevel::DEBUG);
+		this->me = Player({ME_NAME});
+		this->opponent = Player({OPPONENT_NAME});
 
 		pair<int, int> mapSizeInfos = ApiEngine::GetMapSizeInfos();
 		this->worldMap = new WorldMap(mapSizeInfos.first, mapSizeInfos.second);
@@ -489,26 +508,28 @@ public:
 	void GetTurnInfos() {
 		SetScoreInfos();
 		PrintScoreInfos();
-		PrintPacInfos(INFOS);
+		PrintPacInfos(DEBUG_INFOS);
 		GetPacInfos();
 		PrintPacInfos(INFOS);
 		GetPelletInfos();
 		PrintPelletsInfos();
+		ResolvePelletAting(me.pacs);
+		ResolvePelletAting(opponent.pacs);
 	}
 
 	void EndTurn() {
+		errorStrings.push_back("START END TURN!");
+		Tools::PrintErrors(ERROR);
+
 		SetPacsGoal();
 
-		WriteActions();
-
-		SetPacsPreviousLocation(me.pacs);
-		SetPacsPreviousLocation(opponent.pacs);
-
-		ClearProperties();
 		if (this->isFirstTurn)
 		{
 			this->isFirstTurn = false;
 		}
+		SetPacsPreviousLocation(me.pacs);
+		SetPacsPreviousLocation(opponent.pacs);
+		WriteActions();
 	};
 
 private:
@@ -525,31 +546,45 @@ private:
 				pac->ClearBlockingDest();
 			}
 			else
-			{				
+			{
 				errorStrings.push_back("PAC IS BLOCK!!!");
 				Tools::PrintErrors(INFOS);
 				pac->AddBlockingDest(pac->GetDestGoal());
 			}
 
+			pac->SetPreviousLocation(pac->GetLocation());
+			this->knownLocationList.push_back(pac->GetLocation());
+		}
+	};
+
+	void ResolvePelletAting(vector<Pac*> pacList) {
+		for (Pac* pac : pacList)
+		{
 			if (Tools::IsInVector(this->knownPellets, pac->GetLocation()))
 			{
 				RemovePelletKnownLocation(pac->GetLocation());
 			}
-
-			pac->SetPreviousLocation(pac->GetLocation());
-		}
+		}		
 	};
 
 	void ClearProperties() {
 		this->worldMap->ClearBigPelletList();
 		this->worldMap->ClearSmallPelletList();
+		for (auto pac : this->opponent.pacs)
+		{
+			delete pac;
+		}
 		this->opponent.pacs.clear();
 	};
 
 	void SetScoreInfos() {
 		pair<int, int> scoreInfos = ApiEngine::GetScoreInfos();
+		ClearProperties();
 		me.score = scoreInfos.first;
-		opponent.score = scoreInfos.second;		
+		opponent.score = scoreInfos.second;
+		
+		errorStrings.push_back("START TURN!");
+		Tools::PrintErrors(ERROR);
 	}
 
 	void PrintScoreInfos() {
@@ -567,21 +602,11 @@ private:
 		{
 			if (pac.mine)
 			{
-				if (pac.type == "DEAD")
-				{
-					int pacId = pac.pacId;
-					auto it = find_if(me.pacs.begin(), me.pacs.end(), [&](Pac* pac) { return pac->GetId() == pacId; });
-					me.pacs.erase(it);
-					delete (*it);
-				}
-				else
-				{
-					AddOrUpdatePac(me.pacs, pac);
-				}
+				AddOrUpdatePac(this->me, pac);
 			}
 			else
 			{
-				AddOrUpdatePac(opponent.pacs, pac);
+				AddOrUpdatePac(this->opponent, pac);
 			}
 		}
 	}
@@ -631,7 +656,11 @@ private:
 
 	void RemovePelletKnownLocation(pair<int, int> pos)
 	{		
-		this->knownPellets.erase(find(this->knownPellets.begin(), this->knownPellets.end(), pos));
+		errorStrings.push_back("REMOVE KNOWN PELLET " + Tools::GetPairString(pos));
+		errorStrings.push_back("KNOWN PELLET SIZE BEFORE" + to_string(this->knownPellets.size()));
+		Tools::PrintErrors(ERROR);
+		this->knownPellets.erase(remove(this->knownPellets.begin(), this->knownPellets.end(), pos));
+		errorStrings.push_back("KNOWN PELLET SIZE AFTER" + to_string(this->knownPellets.size()));
 	}
 
 	void PrintPelletsInfos() {
@@ -652,37 +681,47 @@ private:
 		Tools::PrintErrors(ErrorLevel::DEBUG);
 	}
 
-	void AddOrUpdatePac(vector<Pac*>& pacList, const PacInput& pacInfos) {
-		errorStrings.push_back("AddOrUpdatePac()!");
-		Tools::PrintErrors(ErrorLevel::DEBUG);	
-
-		if (pacList.size() > 0) {
-			errorStrings.push_back("PACLIST SIZE [" + to_string(pacList.size()) + "]");
-			Tools::PrintErrors(INFOS);
-			auto it = find_if(pacList.begin(), pacList.end(), [pacInfos](Pac* pac) { return pac->GetId() == pacInfos.pacId; });
-
-			errorStrings.push_back("PACID [" + to_string(pacInfos.pacId) + "]");
-			errorStrings.push_back("FIRST? [" + to_string(it != pacList.begin()) + "]");
-			errorStrings.push_back("SECOND? [" + to_string(it != pacList.end()) + "]");
-			errorStrings.push_back("IS FOUND? [" + to_string(it != pacList.begin() || it != pacList.end()) + "]");
-			Tools::PrintErrors(INFOS);
-
-			if (it != pacList.end())
-			{
-				Pac& pac = *(*it);
-				pac.SetLocation(make_pair(pacInfos.x, pacInfos.y));
-				return;
-			}
+	void AddOrUpdatePac(Player& player, const PacInput& pacInfos) {
+		if (this->isFirstTurn || player.name == OPPONENT_NAME)
+		{
+			AddPac(player, pacInfos);
 		}
-
-		errorStrings.push_back("PUSH NEW PACK!");
-		Tools::PrintErrors(INFOS);
-		pacList.push_back(new Pac(pacInfos.pacId, pacInfos.x, pacInfos.y, pacInfos.type));
+		else
+		{
+			UpdatePac(player, pacInfos);
+		}
 	};
 
+	void AddPac(Player& player, const PacInput& pacInfos)
+	{
+		player.pacs.push_back(new Pac(pacInfos.pacId, pacInfos.x, pacInfos.y, pacInfos.type));
+	}
+
+	void UpdatePac(Player& player, const PacInput& pacInfos)
+	{
+		auto it = find_if(player.pacs.begin(), player.pacs.end(), [pacInfos](Pac* pac) { return pac->GetId() == pacInfos.pacId; });
+
+		if ((*it) != nullptr)
+		{
+			Pac& pac = *(*it);
+			pac.SetLocation(make_pair(pacInfos.x, pacInfos.y));
+			pac.SetType(pacInfos.type);
+			Tools::PrintErrors(INFOS);
+			return;
+		}
+	}
+
 	void SetPacsGoal() {
+		if (this->isFirstTurn || this->worldMap->GetBigPelletList().size() > 0)
+		{
+			SetClosestBigPelletToPacs();
+		}
+
 		for (Pac* pac : this->me.pacs) 
 		{
+			if (pac->GetType() == "DEAD")
+				continue;
+
 			if (ShouldRecalculateGoal(*pac)) {
 				pair<int, int> goal = FindGoal(*pac);
 				if (pac->GetDestGoal() != NO_GOAL)
@@ -695,11 +734,70 @@ private:
 		}
 	};
 
+	void SetClosestBigPelletToPacs() {
+		errorStrings.push_back("SetPacsGoal FIRST TURN!");
+			Tools::PrintErrors(ERROR);
+			vector<pair<int, int>> myPosList;
+			struct ClosestPacPos
+			{
+				pair<int, int> pacPos;
+				pair<int, int> bigPellet;
+				int dist;
+			};
+			vector<ClosestPacPos> pacPelletDistList;
+
+			for (auto pac : this->me.pacs)
+			{
+				myPosList.push_back(pac->GetLocation());
+			}
+			for (auto bigPellet : this->worldMap->GetBigPelletList())
+			{
+				ClosestPacPos cpp = ClosestPacPos();			
+				cpp.pacPos = Tools::GetClosestPosInVector(myPosList, bigPellet);
+				cpp.bigPellet = bigPellet;
+				cpp.dist = Tools::GetDist(cpp.pacPos, cpp.bigPellet);
+				pacPelletDistList.push_back(cpp);
+			}
+			for (auto cpp : pacPelletDistList)
+			{
+				auto it = find_if(this->me.pacs.begin(), this->me.pacs.end(), [&](Pac* pac) { return cpp.pacPos == pac->GetLocation(); });
+				errorStrings.push_back("PAC ID [" + to_string((*it)->GetId()) + "]");
+				errorStrings.push_back("POS PAC [" + Tools::GetPairString((*it)->GetLocation()) + "]");
+				errorStrings.push_back("PAC GOAL [" + Tools::GetPairString((*it)->GetDestGoal()) + "]");
+				errorStrings.push_back("POS PELLET [" + Tools::GetPairString(cpp.bigPellet) + "]");
+				errorStrings.push_back("DIST [" + to_string(cpp.dist) + "]");
+				Tools::PrintErrors(ERROR);
+				if ((*it)->GetDestGoal() == NO_GOAL)
+				{
+					(*it)->SetDestGoal(cpp.bigPellet);
+					this->destGoals.push_back(cpp.bigPellet);
+					errorStrings.push_back("NO GOAL SET [" + Tools::GetPairString((*it)->GetDestGoal()) + "]");
+					Tools::PrintErrors(ERROR);
+				}
+				else if (Tools::GetDist((*it)->GetLocation(), (*it)->GetDestGoal()) > cpp.dist)
+				{
+					this->destGoals.erase(remove(this->destGoals.begin(), this->destGoals.end(), cpp.bigPellet));
+					(*it)->SetDestGoal(cpp.bigPellet);
+					this->destGoals.push_back(cpp.bigPellet);
+					errorStrings.push_back("CLOSEST GOAL SET [" + Tools::GetPairString((*it)->GetDestGoal()) + "]");
+					Tools::PrintErrors(ERROR);
+				}
+				Tools::PrintErrors(ERROR);
+			}
+			Tools::PrintErrors(ERROR);
+	};
+
 	void WriteActions() {
 		// Write an action using cout. DON'T FORGET THE "<< endl"
 		stringstream actions;
 		for (Pac* pac : this->me.pacs)
 		{
+			errorStrings.push_back("WRITE ACTIONS FOR PACS:");
+			errorStrings.push_back(pac->ToString());
+			Tools::PrintErrors(DEBUG_INFOS);
+			if (pac->GetType() == "DEAD")
+				continue;
+
 			if (actions.str().length() > 0)
 			{
 				actions << "|";
@@ -707,23 +805,78 @@ private:
 			actions << "MOVE " << pac->GetId() << " " << pac->GetDestGoal().first << " " << pac->GetDestGoal().second;
 		}
 
+		errorStrings.push_back("END TURN!");
+		Tools::PrintErrors(ERROR);
 		cout << actions.str() << endl; // MOVE <pacId> <x> <y>
 	};
 
 	bool ShouldRecalculateGoal(Pac& pac) {
-		bool shouldRecalculate = false;
-
-		// || !this->worldMap->IsPosInBigPellets(pac.GetDestGoal()) && !this->worldMap->IsPosInSmallPellets(pac.GetDestGoal())
-		if (pac.IsBlock()
-			|| pac.GetDestGoal() == NO_GOAL)
+		errorStrings.push_back("SHOULD RECALCULATE FOR PAC(" + to_string(pac.GetId()) + ")");
+		Tools::PrintErrors(ERROR);
+		if (pac.GetDestGoal() == NO_GOAL)
 		{
-			shouldRecalculate = true;
+			errorStrings.push_back("NO GOAL!");
+			Tools::PrintErrors(ERROR);
+			return true;
 		}
 
-		return shouldRecalculate;
+		if (pac.IsBlock() && !this->worldMap->IsPosInBigPellets(pac.GetDestGoal()))
+		{
+			errorStrings.push_back("IS BLOCK!");
+			errorStrings.push_back(pac.ToString());
+			errorStrings.push_back(to_string(this->GetValidPelletLocationList(pac).size()));
+			Tools::PrintErrors(ERROR);
+			return true;
+		}
+		
+		if (!this->worldMap->IsPosInBigPellets(pac.GetDestGoal()) && !Tools::IsInVector(this->knownLocationList, pac.GetDestGoal()))
+		{
+			errorStrings.push_back("GOAL NO LONGER EXIST!");
+			Tools::PrintErrors(ERROR);
+			return true;
+		}
+
+		if (this->knownPellets.size() < 5) {
+			errorStrings.push_back("SHOULD EXPLORE MAP!");
+			Tools::PrintErrors(ERROR);
+			return true;
+		}
+
+		errorStrings.push_back("KEEP GOAL!");
+		Tools::PrintErrors(ERROR);
+		return false;
 	}
 
 	pair<int, int> FindGoal(Pac& pac) {
+		vector<pair<int, int>> remainingBigPelletList = GetRemainingBigPelletList(pac);
+
+		if (remainingBigPelletList.size() > 0) {
+			pair<int, int> goal = Tools::GetClosestPosInVector(remainingBigPelletList, pac.GetLocation());
+			errorStrings.push_back("FindGoal(" + to_string(pac.GetId()) + "): ");
+			errorStrings.push_back("BigPellet GOAL: " + Tools::GetPairString(goal));
+			Tools::PrintErrors(ERROR);
+			return goal;
+		}
+
+		vector<pair<int, int>> validPelletLocation = GetValidPelletLocationList(pac);
+		if (validPelletLocation.size() > 0
+			|| pac.IsBlock() && !validPelletLocation.size() == 1)
+		{
+			pair<int, int> goal = Tools::GetClosestPosInVector(validPelletLocation, pac.GetLocation());
+			errorStrings.push_back("FindGoal(" + to_string(pac.GetId()) + "): ");
+			errorStrings.push_back("SmallPellet GOAL: " + Tools::GetPairString(goal));
+			Tools::PrintErrors(ERROR);
+			return goal;
+		}
+
+		pair<int, int> defaultGoal = this->worldMap->GetRandomValidLocation();
+		errorStrings.push_back("FindGoal(" + to_string(pac.GetId()) + "): ");
+		errorStrings.push_back("GetRandomValidLocation [" + Tools::GetPairString(defaultGoal) + "]");
+		Tools::PrintErrors(ERROR);
+		return this->worldMap->GetRandomValidLocation();
+	};
+
+	vector<pair<int, int>> GetRemainingBigPelletList(Pac& pac) {
 		vector<pair<int, int>> remainingBigPelletList;
 		this->worldMap->PrintBigPelletList(ErrorLevel::DEBUG_INFOS);
 		
@@ -738,40 +891,65 @@ private:
 		errorStrings.push_back("RemainingBigPelletList size [" + to_string(remainingBigPelletList.size()) + "]");
 		Tools::PrintErrors(ErrorLevel::DEBUG_INFOS);
 
-		if (remainingBigPelletList.size() > 0) {
-			pair<int, int> goal = Tools::GetClosestPosInVector(remainingBigPelletList, pac.GetLocation());
-			errorStrings.push_back("BigPellet GOAL: " + Tools::GetPairString(goal));
-			Tools::PrintErrors(ErrorLevel::INFOS);
-			return goal;
+		return remainingBigPelletList;
+	};
+
+	vector<pair<int, int>> GetValidPelletLocationList(Pac& pac) {		
+		vector<pair<int, int>> validPelletLocationList;
+		errorStrings.push_back("Visible Small Pellets size [" + to_string(this->worldMap->GetSmallPelletList().size()) + "]");
+		Tools::PrintErrors(ErrorLevel::ERROR);
+
+		if (this->worldMap->GetSmallPelletList().size() > 0) 
+		{
+			for (auto pellet : this->worldMap->GetSmallPelletList())
+			{
+				if (IsNextTo(pac.GetLocation(), pellet))
+				{
+					errorStrings.push_back("PACID: " + to_string(pac.GetId()));
+					errorStrings.push_back("LOCATION: " + Tools::GetPairString(pac.GetLocation()));
+					errorStrings.push_back("PELLET: " + Tools::GetPairString(pellet));
+					Tools::PrintErrors(ErrorLevel::ERROR);
+					validPelletLocationList.push_back(pellet);
+				}
+			}
+
+			if (validPelletLocationList.size() > 0)
+			{
+				if (validPelletLocationList.size() == 1 && pac.IsBlock())
+				{
+					errorStrings.push_back("ISNEXT TO BLOCKING DEST!!!! size [" + to_string(validPelletLocationList.size()) + "]");
+					Tools::PrintErrors(ErrorLevel::ERROR);
+					pac.AddBlockingDest(validPelletLocationList.at(0));
+					validPelletLocationList.pop_back();
+				}
+				else
+				{
+					errorStrings.push_back("ISNEXT TO validPelletLocation size [" + to_string(validPelletLocationList.size()) + "]");
+					Tools::PrintErrors(ErrorLevel::ERROR);
+					return validPelletLocationList;
+				}
+			}
 		}
 
-		errorStrings.push_back("knownPellets size [" + to_string(this->knownPellets.size()) + "]");
-		Tools::PrintErrors(ErrorLevel::INFOS);
-		vector<pair<int, int>> validPelletLocation;
+
 		for (auto pellet : this->knownPellets)
 		{
 			if (pac.CanGo(pellet))
 			{
-				validPelletLocation.push_back(pellet);
+				validPelletLocationList.push_back(pellet);
 			}
 		}
 
-		errorStrings.push_back("validPelletLocation size [" + to_string(validPelletLocation.size()) + "]");
-		Tools::PrintErrors(ErrorLevel::INFOS);
-		if (validPelletLocation.size() > 0)
-		{
-			pair<int, int> goal = Tools::GetClosestPosInVector(validPelletLocation, pac.GetLocation());
-			errorStrings.push_back("SmallPellet GOAL: " + Tools::GetPairString(goal));
-			Tools::PrintErrors(ErrorLevel::INFOS);
-			return goal;
-		}
-		else
-		{
-			errorStrings.push_back("GetRandomValidLocation");
-			Tools::PrintErrors(ErrorLevel::INFOS);
-			return this->worldMap->GetRandomValidLocation();
-		}
+		errorStrings.push_back("validPelletLocation size [" + to_string(validPelletLocationList.size()) + "]");
+		Tools::PrintErrors(ErrorLevel::ERROR);
+
+		return validPelletLocationList;
 	};
+
+	bool IsNextTo(pair<int, int> initPos, pair<int, int> destPos)
+	{
+		return Tools::GetDist(initPos, destPos) == 1;
+	}
 };
 
 /**
@@ -783,7 +961,7 @@ int main()
 
 	// game loop
 	while (1)
-	{		
+	{
 		game->GetTurnInfos();
 
 		// Write an action using cout. DON'T FORGET THE "<< endl"
