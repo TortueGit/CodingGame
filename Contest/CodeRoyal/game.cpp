@@ -12,10 +12,10 @@ struct Site
 	int x;
 	int y;
 	int radius;
-	int goldRemain; // used in future leagues
-	int maxMineSize; // used in future leagues
+	int goldRemain;	   // used in future leagues
+	int maxMineSize;   // used in future leagues
 	int structureType; // -1 = No structure, 0 = Goldmine, 1 = Tower, 2 = Barracks
-	int owner; // -1 = No structure, 0 = Friendly, 1 = Enemy
+	int owner;		   // -1 = No structure, 0 = Friendly, 1 = Enemy
 	int param1;
 	int param2;
 };
@@ -75,9 +75,8 @@ std::vector<int> emptyMinesId;
 
 std::vector<string> errorStrings;
 
-int errorLvl = 10;	// 0 -> show every logs.	// 10 -> We sumbmit, so we don't want to see logs, becouse we don't have errors in our code ;). We select a big value in case of we have lvl of error logs, but we don't have yet, so it just for fun :D
+int errorLvl = 10; // 0 -> show every logs.	// 10 -> We sumbmit, so we don't want to see logs, becouse we don't have errors in our code ;). We select a big value in case of we have lvl of error logs, but we don't have yet, so it just for fun :D
 #pragma endregion
-
 
 #pragma region ToolsMethods
 void initProperties();
@@ -94,7 +93,7 @@ bool isSiteUnderTowerRange(Site _site, std::vector<Site> _towerSites);
 bool isUnitUnderTowerRange(Unit _unit, std::vector<Site> _towerSites);
 double getDistance(std::pair<int, int> _pos1, std::pair<int, int> _pos2);
 
-std::vector<Site> getEmptySites(int _type);	// 0 - no filter; 1 - mine filter; 
+std::vector<Site> getEmptySites(int _type); // 0 - no filter; 1 - mine filter;
 
 void errorOutput(int _level = 0);
 #pragma endregion
@@ -119,11 +118,10 @@ void train();
 void train(std::vector<int> _siteIds);
 #pragma endregion
 
-
 /**
-* Auto-generated code below aims at helping you parse
-* the standard input according to the problem statement.
-**/
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ **/
 int main()
 {
 	bool areWeMoving = false;
@@ -133,13 +131,16 @@ int main()
 	int previousHealth = -1;
 
 	int numSites;
-	cin >> numSites; cin.ignore();
-	for (int i = 0; i < numSites; i++) {
+	cin >> numSites;
+	cin.ignore();
+	for (int i = 0; i < numSites; i++)
+	{
 		int siteId;
 		int x;
 		int y;
 		int radius;
-		cin >> siteId >> x >> y >> radius; cin.ignore();
+		cin >> siteId >> x >> y >> radius;
+		cin.ignore();
 		allSites.push_back(Site());
 		allSites.back().siteId = siteId;
 		allSites.back().x = x;
@@ -148,22 +149,27 @@ int main()
 	}
 
 	// game loop
-	while (1) {
+	while (1)
+	{
 		goldEarnByTurn = 0;
 		goldEarnByTurnEnemy = 0;
+		emptyMinesId.clear();
 
-		cin >> gold >> touchedSite; cin.ignore();
-		for (int i = 0; i < numSites; i++) {
+		cin >> gold >> touchedSite;
+		cin.ignore();
+		for (int i = 0; i < numSites; i++)
+		{
 			int index;
 
 			int siteId;
-			int goldRemain; // used in future leagues
-			int maxMineSize; // used in future leagues
+			int goldRemain;	   // used in future leagues
+			int maxMineSize;   // used in future leagues
 			int structureType; // -1 = No structure, 0 = Goldmine, 1 = Tower, 2 = Barracks
-			int owner; // -1 = No structure, 0 = Friendly, 1 = Enemy
+			int owner;		   // -1 = No structure, 0 = Friendly, 1 = Enemy
 			int param1;
 			int param2;
-			cin >> siteId >> goldRemain >> maxMineSize >> structureType >> owner >> param1 >> param2; cin.ignore();
+			cin >> siteId >> goldRemain >> maxMineSize >> structureType >> owner >> param1 >> param2;
+			cin.ignore();
 
 			index = getSiteIndexById(siteId, allSites);
 			allSites.at(index).goldRemain = goldRemain;
@@ -193,14 +199,17 @@ int main()
 
 		allUnits.clear();
 		int numUnits;
-		cin >> numUnits; cin.ignore();
-		for (int i = 0; i < numUnits; i++) {
+		cin >> numUnits;
+		cin.ignore();
+		for (int i = 0; i < numUnits; i++)
+		{
 			int x;
 			int y;
 			int owner;
 			int unitType; // -1 = QUEEN, 0 = KNIGHT, 1 = ARCHER
 			int health;
-			cin >> x >> y >> owner >> unitType >> health; cin.ignore();
+			cin >> x >> y >> owner >> unitType >> health;
+			cin.ignore();
 			allUnits.push_back(Unit());
 			allUnits.back().x = x;
 			allUnits.back().y = y;
@@ -210,7 +219,7 @@ int main()
 		}
 
 		// Write an action using cout. DON'T FORGET THE "<< endl"
-		// To debug: cerr << "Debug messages..." << endl;        
+		// To debug: cerr << "Debug messages..." << endl;
 
 		// Get our Queen.
 		queen = getQueen(0);
@@ -231,7 +240,7 @@ int main()
 		else
 			areWeInDanger = false;
 
-		if (queen.x == homePosition.first && queen.y == homePosition.second || !areWeInDanger)
+		if ((queen.x == homePosition.first && queen.y == homePosition.second) || !areWeInDanger)
 			isGoBackHome = false;
 
 		errorStrings.push_back("initProperties() !");
@@ -248,11 +257,6 @@ int main()
 		errorOutput(0);
 
 		performTraining();
-
-		// First line: A valid queen action
-		// Second line: A set of training instructions
-		//cout << "WAIT" << endl;
-		//cout << "TRAIN" << endl;
 	}
 }
 
@@ -301,7 +305,7 @@ void initProperties()
 
 	clearProperties();
 
-	//Get our constructions.
+	// Get our constructions.
 	allyArcherySites = getSitesByTypeAndOwner(2, 0, -1, 1);
 	allyKnightSites = getSitesByTypeAndOwner(2, 0, -1, 0);
 	allyGiantSites = getSitesByTypeAndOwner(2, 0, -1, 2);
@@ -423,7 +427,7 @@ int getSiteIndexById(int _siteId, std::vector<Site> _sites)
 	return -1;
 }
 
-std::vector<Site> getSitesByTypeAndOwner(int _structureType, int _owner, int _param1/* = -1*/, int _param2/* = -1*/)
+std::vector<Site> getSitesByTypeAndOwner(int _structureType, int _owner, int _param1 /* = -1*/, int _param2 /* = -1*/)
 {
 	std::vector<Site> sites;
 	for (auto site : allSites)
@@ -455,7 +459,7 @@ std::vector<Site> getSiteToBuild()
 			sites.push_back(site);
 	}
 
-	if (sites.size() < 0)
+	if (sites.size() == 0)
 	{
 		errorStrings.push_back("No more empty site.");
 		errorOutput(2);
@@ -466,7 +470,7 @@ std::vector<Site> getSiteToBuild()
 
 Unit getClosestUnit(std::vector<Unit> &_units, int _unitType)
 {
-	Unit selectedUnit = { -1,-1,-1,-1 };
+	Unit selectedUnit = {-1, -1, -1, -1};
 	bool first = true;
 	int selUnitDistX = 0;
 	int selUnitDistY = 0;
@@ -664,11 +668,15 @@ bool isSiteUnderTowerRange(Site _site, std::vector<Site> _towerSites)
 	for (auto tower : _towerSites)
 	{
 		// Get distance between tower and site.
-		if (_site.x > tower.x) distX = tower.x - _site.x;
-		else distX = _site.x - tower.x;
+		if (_site.x > tower.x)
+			distX = tower.x - _site.x;
+		else
+			distX = _site.x - tower.x;
 
-		if (_site.y > tower.y) distY = tower.y - _site.y;
-		else distY = _site.y - tower.y;
+		if (_site.y > tower.y)
+			distY = tower.y - _site.y;
+		else
+			distY = _site.y - tower.y;
 
 		distSiteTower = hypot(distX, distY);
 		if (distSiteTower <= tower.param2)
@@ -691,11 +699,15 @@ bool isUnitUnderTowerRange(Unit _unit, std::vector<Site> _towerSites)
 	for (auto tower : _towerSites)
 	{
 		// Get distance between tower and site.
-		if (_unit.x > tower.x) distX = tower.x - _unit.x;
-		else distX = _unit.x - tower.x;
+		if (_unit.x > tower.x)
+			distX = tower.x - _unit.x;
+		else
+			distX = _unit.x - tower.x;
 
-		if (_unit.y > tower.y) distY = tower.y - _unit.y;
-		else distY = _unit.y - tower.y;
+		if (_unit.y > tower.y)
+			distY = tower.y - _unit.y;
+		else
+			distY = _unit.y - tower.y;
 
 		distUnitTower = hypot(distX, distY);
 		if (distUnitTower <= tower.param2)
@@ -832,7 +844,7 @@ void performAction()
 	// Are we in alert (under attack) ?
 	if (areWeInDanger)
 	{
-		//TODO: Are we under tower ? If yes, first move to a safe place.
+		// TODO: Are we under tower ? If yes, first move to a safe place.
 		if (isUnitUnderTowerRange(queen, enemyTowerSites))
 		{
 			errorStrings.push_back("DEBUG : Go back home -- moveToPoint(" + std::to_string(homePosition.first) + "," + std::to_string(homePosition.second) + "); --");
@@ -905,7 +917,7 @@ void performAction()
 	}
 	else
 	{
-		if (enemyUnits.size() > 1)
+		if (enemyUnits.size() > 0)
 		{
 			// Enemy have units. Let's see where is the closest one and adapt our position from this one.
 			Unit closestEnemyUnit = getClosestUnit(enemyUnits, 0);
@@ -916,9 +928,9 @@ void performAction()
 				{
 					errorStrings.push_back("ALERT -- Enemy close of the queen ! God save the Queen !");
 					errorStrings.push_back("Enemy Unit : type(" + std::to_string(closestEnemyUnit.unitType) + "); health(" + std::to_string(closestEnemyUnit.health) +
-						"); owner(" + std::to_string(closestEnemyUnit.owner) + "); x(" + std::to_string(closestEnemyUnit.x) + "); y(" + std::to_string(closestEnemyUnit.y) + ")");
+										   "); owner(" + std::to_string(closestEnemyUnit.owner) + "); x(" + std::to_string(closestEnemyUnit.x) + "); y(" + std::to_string(closestEnemyUnit.y) + ")");
 					errorStrings.push_back("Queen Unit : type(" + std::to_string(queen.unitType) + "); health(" + std::to_string(queen.health) +
-						"); owner(" + std::to_string(queen.owner) + "); x(" + std::to_string(queen.x) + "); y(" + std::to_string(queen.y) + ")");
+										   "); owner(" + std::to_string(queen.owner) + "); x(" + std::to_string(queen.x) + "); y(" + std::to_string(queen.y) + ")");
 					errorStrings.push_back("distance : " + std::to_string(getDistance(std::make_pair(queen.x, queen.y), std::make_pair(closestEnemyUnit.x, closestEnemyUnit.y))) + "!");
 					errorOutput(1);
 
@@ -995,11 +1007,11 @@ void performTraining()
 		}
 		// IF YES : Choose what to train.
 		// Do we have Knights ? We want Knights, to attack the evil queen.
-		//if (allyKnightUnits.size() > 0)
+		// if (allyKnightUnits.size() > 0)
 		//{
 		//	// OK ! We have at least one Knight.
 		//}
-		//else 
+		// else
 		if (allyKnightSites.size() > 0)
 		{
 			// We don't have Knights, but we have barrack to train Knights.
@@ -1043,7 +1055,7 @@ void trainGiants()
 		// We have Knight barracks
 		for (auto barrack : allyGiantSites)
 		{
-			if (barrack.param1 == 0 && gold >= 80)
+			if (barrack.param1 == 0 && gold >= 140)
 			{
 				siteIds.push_back(barrack.siteId);
 				gold -= 140;
@@ -1162,7 +1174,6 @@ bool buildBarracks()
 							return true;
 						}
 
-
 						// Try with only one Barracks of Knights.
 						/*if (goldEarByTurn >= 5 &&
 						allyKnightSites.size() <= 1)
@@ -1270,7 +1281,6 @@ bool moveToPoint(int x, int y)
 	if (y > 1000)
 		y = 1000;
 
-
 	// If we have a very close empty site on our way, build a tower can be great.
 	Site closestEmptySite = getClosestSite(emptySites, 1);
 	if (closestEmptySite.siteId != -1 && getDistance(std::make_pair(queen.x, queen.y), std::make_pair(closestEmptySite.x, closestEmptySite.y)) <= 100)
@@ -1291,6 +1301,7 @@ bool moveToPoint(int x, int y)
 	}
 
 	cout << "MOVE " + std::to_string(x) + " " + std::to_string(y) << endl;
+	return false;
 }
 
 void buildTower(int _siteId)
@@ -1318,7 +1329,7 @@ void buildTower(int _siteId)
 				// Maybe you are in danger, and u don't give a shit to upgrade tower ?
 				// Are you in danger ?
 				if (!areWeInDanger)
-					_siteId == tower.siteId;
+					_siteId = tower.siteId;
 			}
 		}
 	}
